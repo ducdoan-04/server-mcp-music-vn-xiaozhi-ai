@@ -1,31 +1,27 @@
 /**
- * MCP VN Music Server - chuẩn SSE cho Xiaozhi.me
- * Kết nối với mp3.mrhung.io.vn
- *
- * Xiaozhi sẽ gọi:
- *   GET /sse         => kết nối SSE + nhận sessionId
- *   POST /messages   => gửi JSON-RPC (initialize, tools/list, tools/call)
+ * MCP VN Music Server
+ * Server kết nối WebSocket CLIENT tới Xiaozhi.me và inject MCP tools âm nhạc
  */
 
 const express = require("express");
 const fetch = require("node-fetch");
 const cors = require("cors");
 const path = require("path");
+const WebSocket = require("ws");
 const { v4: uuidv4 } = require("uuid");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// Phục vụ web UI từ thư mục public
 app.use(express.static(path.join(__dirname, "public")));
 
 const BASE = "https://mp3.mrhung.io.vn";
 
-// ─── Lưu trữ SSE clients ─────────────────────────────────────────────────────
-const sseClients = new Map(); // sessionId -> res
+// ─── Lưu các thiết bị đang kết nối ─────────────────────────────────────────
+const connectedDevices = new Map();
+// deviceName -> { ws, url, connectedAt, status, reconnectTimer }
 
-// ─── Định nghĩa MCP Tools ────────────────────────────────────────────────────
+// ─── MCP Tool definitions ────────────────────────────────────────────────────
 const MCP_TOOLS = [
   {
     name: "search_music",
@@ -35,11 +31,11 @@ const MCP_TOOLS = [
       properties: {
         query: {
           type: "string",
-          description: "Tên bài hát hoặc ca sĩ cần tìm. Ví dụ: 'sơn tùng', 'lạc trôi', 'bích phương'"
+          description: "Tên bài hát hoặc ca sĩ cần tìm. Ví dụ: 'sơn tùng', 'lạc trôi'"
         },
         limit: {
           type: "number",
-          description: "Số lượng kết quả trả về (mặc định: 5, tối đa: 10)",
+          description: "Số kết quả (mặc định 5, tối đa 10)",
           default: 5
         }
       },
@@ -48,13 +44,13 @@ const MCP_TOOLS = [
   },
   {
     name: "play_music",
-    description: "Lấy link stream nhạc từ encodeId để phát. Trả về URL stream trực tiếp.",
+    description: "Lấy link stream MP3 từ encodeId để Xiaozhi phát qua loa.",
     inputSchema: {
       type: "object",
       properties: {
         encodeId: {
           type: "string",
-          description: "Mã bài hát encodeId lấy từ kết quả search_music"
+          description: "Mã bài hát encodeId từ kết quả search_music"
         }
       },
       required: ["encodeId"]
@@ -62,342 +58,288 @@ const MCP_TOOLS = [
   },
   {
     name: "get_top_charts",
-    description: "Lấy danh sách bài hát đang hot/trending hiện tại trên Zing MP3 Việt Nam.",
+    description: "Lấy danh sách bài hát đang hot/trending trên Zing MP3 Việt Nam.",
     inputSchema: {
       type: "object",
       properties: {
-        limit: {
-          type: "number",
-          description: "Số bài hát muốn lấy (mặc định: 10)",
-          default: 10
-        }
+        limit: { type: "number", description: "Số bài (mặc định 10)", default: 10 }
       }
     }
   }
 ];
 
-// ─── SSE Helper ──────────────────────────────────────────────────────────────
-function sendSSE(res, event, data) {
-  res.write(`event: ${event}\n`);
-  res.write(`data: ${JSON.stringify(data)}\n\n`);
+// ─── Tool handlers ────────────────────────────────────────────────────────────
+async function handleSearchMusic({ query, limit = 5 }) {
+  const n = Math.min(limit, 10);
+  const r = await fetch(`${BASE}/api/search?q=${encodeURIComponent(query)}`);
+  const data = await r.json();
+  const songs = (data?.data?.songs || []).slice(0, n).map(s => ({
+    title: s.title,
+    artist: s.artistsNames,
+    album: s.album?.title || "",
+    duration: formatDur(s.duration),
+    encodeId: s.encodeId,
+    thumbnail: s.thumbnailM || "",
+    streamUrl: `${BASE}/api/song/stream?id=${s.encodeId}`
+  }));
+  return songs.length
+    ? { message: `Tìm thấy ${songs.length} bài cho "${query}"`, songs }
+    : { message: `Không tìm thấy "${query}"`, songs: [] };
 }
 
-// ─── Tool Handlers ───────────────────────────────────────────────────────────
-async function handleSearchMusic(args) {
-  const { query, limit = 5 } = args;
-  const maxLimit = Math.min(limit, 10);
-
-  try {
-    const response = await fetch(
-      `${BASE}/api/search?q=${encodeURIComponent(query)}`
-    );
-    const data = await response.json();
-
-    if (data.err !== 0) {
-      return { error: "Không tìm được bài hát. Thử lại với từ khóa khác." };
-    }
-
-    const songs = (data?.data?.songs || []).slice(0, maxLimit).map((s) => ({
-      title: s.title,
-      artist: s.artistsNames,
-      album: s.album?.title || "",
-      duration: formatDuration(s.duration),
-      encodeId: s.encodeId,
-      thumbnail: s.thumbnailM || s.thumbnail || "",
-      streamUrl: `${BASE}/api/song/stream?id=${s.encodeId}`
-    }));
-
-    if (songs.length === 0) {
-      return {
-        message: `Không tìm thấy bài hát nào với từ khóa "${query}"`,
-        songs: []
-      };
-    }
-
-    return {
-      message: `Tìm thấy ${songs.length} bài hát cho "${query}"`,
-      songs,
-      note: "Dùng encodeId và tool play_music để phát bài hát"
-    };
-  } catch (err) {
-    return { error: `Lỗi kết nối: ${err.message}` };
-  }
-}
-
-async function handlePlayMusic(args) {
-  const { encodeId } = args;
-
-  try {
-    // Kiểm tra stream có tồn tại không
-    const streamUrl = `${BASE}/api/song/stream?id=${encodeId}`;
-    const check = await fetch(streamUrl, { method: "HEAD" });
-
-    if (check.ok || check.status === 302) {
-      return {
-        encodeId,
-        streamUrl,
-        message: `🎵 Đang phát nhạc! Stream URL: ${streamUrl}`,
-        note: "Xiaozhi sẽ phát URL này qua loa"
-      };
-    } else {
-      return {
-        error: "Không tìm thấy stream cho bài hát này",
-        encodeId
-      };
-    }
-  } catch (err) {
-    // Vẫn trả về URL dù không check được
-    const streamUrl = `${BASE}/api/song/stream?id=${encodeId}`;
-    return {
-      encodeId,
-      streamUrl,
-      message: `🎵 Stream URL: ${streamUrl}`
-    };
-  }
-}
-
-async function handleGetTopCharts(args) {
-  const { limit = 10 } = args;
-
-  try {
-    // Tìm top chart bằng cách search trending
-    const response = await fetch(`${BASE}/api/search?q=nhạc+hot+2024`);
-    const data = await response.json();
-
-    const songs = (data?.data?.songs || []).slice(0, Math.min(limit, 10)).map((s, i) => ({
-      rank: i + 1,
-      title: s.title,
-      artist: s.artistsNames,
-      duration: formatDuration(s.duration),
-      encodeId: s.encodeId,
-      streamUrl: `${BASE}/api/song/stream?id=${s.encodeId}`
-    }));
-
-    return {
-      message: `🔥 Top ${songs.length} bài hát hot`,
-      charts: songs
-    };
-  } catch (err) {
-    return { error: `Lỗi: ${err.message}` };
-  }
-}
-
-function formatDuration(seconds) {
-  if (!seconds) return "unknown";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-// ─── MCP JSON-RPC Handler ────────────────────────────────────────────────────
-async function handleJsonRpc(body, sessionId) {
-  const { id, method, params } = body;
-
-  // initialize
-  if (method === "initialize") {
-    return {
-      jsonrpc: "2.0",
-      id,
-      result: {
-        protocolVersion: "2024-11-05",
-        capabilities: {
-          tools: { listChanged: false }
-        },
-        serverInfo: {
-          name: "vn-music-mcp",
-          version: "1.0.0"
-        }
-      }
-    };
-  }
-
-  // notifications/initialized
-  if (method === "notifications/initialized") {
-    return null; // no response needed
-  }
-
-  // tools/list
-  if (method === "tools/list") {
-    return {
-      jsonrpc: "2.0",
-      id,
-      result: { tools: MCP_TOOLS }
-    };
-  }
-
-  // tools/call
-  if (method === "tools/call") {
-    const { name, arguments: args } = params;
-    let toolResult;
-
-    try {
-      if (name === "search_music") {
-        toolResult = await handleSearchMusic(args);
-      } else if (name === "play_music") {
-        toolResult = await handlePlayMusic(args);
-      } else if (name === "get_top_charts") {
-        toolResult = await handleGetTopCharts(args);
-      } else {
-        toolResult = { error: `Tool không tồn tại: ${name}` };
-      }
-    } catch (err) {
-      toolResult = { error: err.message };
-    }
-
-    return {
-      jsonrpc: "2.0",
-      id,
-      result: {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(toolResult, null, 2)
-          }
-        ]
-      }
-    };
-  }
-
-  // ping
-  if (method === "ping") {
-    return { jsonrpc: "2.0", id, result: {} };
-  }
-
+async function handlePlayMusic({ encodeId }) {
+  const streamUrl = `${BASE}/api/song/stream?id=${encodeId}`;
   return {
-    jsonrpc: "2.0",
-    id,
-    error: {
-      code: -32601,
-      message: `Method not found: ${method}`
-    }
+    encodeId,
+    streamUrl,
+    message: `🎵 Stream URL: ${streamUrl}`
   };
 }
 
-// ─── Routes ──────────────────────────────────────────────────────────────────
+async function handleGetTopCharts({ limit = 10 }) {
+  const r = await fetch(`${BASE}/api/search?q=nhạc+hot+2024`);
+  const data = await r.json();
+  const charts = (data?.data?.songs || []).slice(0, Math.min(limit, 10)).map((s, i) => ({
+    rank: i + 1,
+    title: s.title,
+    artist: s.artistsNames,
+    duration: formatDur(s.duration),
+    encodeId: s.encodeId,
+    streamUrl: `${BASE}/api/song/stream?id=${s.encodeId}`
+  }));
+  return { message: `🔥 Top ${charts.length} bài hot`, charts };
+}
 
-// API info endpoint
-app.get("/api", (req, res) => {
-  res.json({
-    name: "VN Music MCP Server",
-    description: "MCP server âm nhạc Việt Nam cho Xiaozhi.me",
-    version: "1.0.0",
-    source: BASE,
-    endpoints: {
-      sse: "/sse (GET) - Kết nối SSE cho Xiaozhi",
-      messages: "/messages?sessionId=xxx (POST) - Gửi lệnh MCP",
-      search: "/search?q=tên+bài+hát (GET) - Tìm kiếm nhanh",
-      play: "/play?id=encodeId (GET) - Stream nhạc"
-    },
-    tools: MCP_TOOLS.map((t) => ({ name: t.name, description: t.description }))
-  });
-});
+function formatDur(s) {
+  if (!s) return "?";
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+}
 
-// SSE endpoint - Xiaozhi kết nối vào đây
-app.get("/sse", (req, res) => {
-  const sessionId = uuidv4();
+// ─── Xử lý message từ Xiaozhi (MCP JSON-RPC qua WebSocket) ──────────────────
+async function handleXiaozhiMessage(ws, raw, deviceName) {
+  let msg;
+  try { msg = JSON.parse(raw.toString()); } catch { return; }
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders();
+  const { id, method, params } = msg;
+  console.log(`[${deviceName}] ← ${method || msg.type || "?"}`);
 
-  // Lưu client
-  sseClients.set(sessionId, res);
-  console.log(`[SSE] Client kết nối: ${sessionId}`);
+  // Ping / pong / notification — không cần trả lời
+  if (!method || method.startsWith("notifications/")) return;
 
-  // Gửi endpoint để Xiaozhi biết POST vào đâu
-  sendSSE(res, "endpoint", {
-    uri: `/messages?sessionId=${sessionId}`
-  });
-
-  // Keepalive mỗi 15 giây
-  const keepAlive = setInterval(() => {
-    if (sseClients.has(sessionId)) {
-      res.write(": keepalive\n\n");
-    } else {
-      clearInterval(keepAlive);
-    }
-  }, 15000);
-
-  // Xử lý disconnect
-  req.on("close", () => {
-    sseClients.delete(sessionId);
-    clearInterval(keepAlive);
-    console.log(`[SSE] Client ngắt kết nối: ${sessionId}`);
-  });
-});
-
-// Messages endpoint - Xiaozhi gửi JSON-RPC vào đây
-app.post("/messages", async (req, res) => {
-  const { sessionId } = req.query;
-
-  if (!sessionId || !sseClients.has(sessionId)) {
-    return res.status(400).json({
-      error: "sessionId không hợp lệ hoặc phiên đã hết hạn. Vui lòng kết nối lại qua /sse"
-    });
-  }
-
-  const sseRes = sseClients.get(sessionId);
-  const body = req.body;
-
-  console.log(`[MCP] ${sessionId.slice(0, 8)} -> ${body.method}`);
+  let result = null;
+  let error = null;
 
   try {
-    const response = await handleJsonRpc(body, sessionId);
-
-    if (response !== null) {
-      sendSSE(sseRes, "message", response);
+    if (method === "initialize") {
+      result = {
+        protocolVersion: "2024-11-05",
+        capabilities: { tools: { listChanged: false } },
+        serverInfo: { name: "vn-music-mcp", version: "1.0.0" }
+      };
+    } else if (method === "tools/list") {
+      result = { tools: MCP_TOOLS };
+    } else if (method === "tools/call") {
+      const { name, arguments: args } = params;
+      let toolResult;
+      if (name === "search_music") toolResult = await handleSearchMusic(args);
+      else if (name === "play_music") toolResult = await handlePlayMusic(args);
+      else if (name === "get_top_charts") toolResult = await handleGetTopCharts(args);
+      else toolResult = { error: `Tool không tồn tại: ${name}` };
+      result = { content: [{ type: "text", text: JSON.stringify(toolResult, null, 2) }] };
+    } else if (method === "ping") {
+      result = {};
+    } else {
+      error = { code: -32601, message: `Method not found: ${method}` };
     }
+  } catch (e) {
+    error = { code: -32603, message: e.message };
+  }
 
-    res.status(202).json({ status: "accepted" });
+  if (id !== undefined && id !== null) {
+    const response = { jsonrpc: "2.0", id };
+    if (error) response.error = error;
+    else response.result = result;
+    ws.send(JSON.stringify(response));
+    console.log(`[${deviceName}] → ${method} OK`);
+  }
+}
+
+// ─── Kết nối WebSocket Client tới Xiaozhi ────────────────────────────────────
+function connectToXiaozhi(deviceName, wssUrl) {
+  const device = connectedDevices.get(deviceName);
+
+  // Nếu đang kết nối rồi thì đóng trước
+  if (device?.ws && device.ws.readyState === WebSocket.OPEN) {
+    device.ws.close();
+  }
+  if (device?.reconnectTimer) clearTimeout(device.reconnectTimer);
+
+  console.log(`[WSS] Đang kết nối tới Xiaozhi: ${deviceName}`);
+
+  const ws = new WebSocket(wssUrl, {
+    headers: {
+      "User-Agent": "VN-Music-MCP/1.0",
+      "Accept": "application/json"
+    }
+  });
+
+  connectedDevices.set(deviceName, {
+    ws,
+    url: wssUrl,
+    connectedAt: null,
+    status: "connecting",
+    reconnectTimer: null
+  });
+
+  ws.on("open", () => {
+    const dev = connectedDevices.get(deviceName);
+    if (dev) {
+      dev.status = "connected";
+      dev.connectedAt = new Date().toISOString();
+    }
+    console.log(`[WSS] ✅ Đã kết nối: ${deviceName}`);
+  });
+
+  ws.on("message", (data) => handleXiaozhiMessage(ws, data, deviceName));
+
+  ws.on("close", (code, reason) => {
+    const dev = connectedDevices.get(deviceName);
+    if (dev) dev.status = "disconnected";
+    console.log(`[WSS] ❌ Ngắt kết nối: ${deviceName} (code ${code})`);
+
+    // Tự reconnect sau 10s
+    const timer = setTimeout(() => {
+      if (connectedDevices.has(deviceName)) {
+        console.log(`[WSS] 🔄 Reconnect: ${deviceName}`);
+        connectToXiaozhi(deviceName, wssUrl);
+      }
+    }, 10000);
+
+    if (connectedDevices.has(deviceName)) {
+      connectedDevices.get(deviceName).reconnectTimer = timer;
+    }
+  });
+
+  ws.on("error", (err) => {
+    const dev = connectedDevices.get(deviceName);
+    if (dev) dev.status = "error";
+    console.error(`[WSS] ⚠️ Lỗi: ${deviceName}: ${err.message}`);
+  });
+
+  return ws;
+}
+
+// ─── API Routes ───────────────────────────────────────────────────────────────
+
+// Kết nối thiết bị mới
+app.post("/api/connect", (req, res) => {
+  const { deviceName, wssUrl } = req.body;
+  if (!deviceName || !wssUrl) {
+    return res.status(400).json({ error: "Thiếu deviceName hoặc wssUrl" });
+  }
+  if (!wssUrl.startsWith("wss://")) {
+    return res.status(400).json({ error: "wssUrl phải bắt đầu bằng wss://" });
+  }
+
+  try {
+    const ws = connectToXiaozhi(deviceName.trim(), wssUrl.trim());
+
+    // Chờ open hoặc error
+    const timeout = setTimeout(() => {
+      if (!res.headersSent) {
+        res.status(504).json({ error: "Timeout: Không kết nối được Xiaozhi sau 8s" });
+      }
+    }, 8000);
+
+    ws.once("open", () => {
+      clearTimeout(timeout);
+      if (!res.headersSent) {
+        res.json({ success: true, message: `✅ Đã kết nối "${deviceName}" thành công!` });
+      }
+    });
+
+    ws.once("error", (err) => {
+      clearTimeout(timeout);
+      if (!res.headersSent) {
+        res.status(500).json({ error: `Không kết nối được: ${err.message}` });
+      }
+    });
   } catch (err) {
-    console.error(`[ERROR] ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
 
-// REST endpoints tiện lợi (dùng test hoặc truy cập trực tiếp)
-app.get("/search", async (req, res) => {
-  const q = req.query.q;
-  if (!q) return res.json({ error: "Thiếu tham số q. Ví dụ: /search?q=sơn+tùng" });
+// Ngắt kết nối thiết bị
+app.post("/api/disconnect", (req, res) => {
+  const { deviceName } = req.body;
+  const dev = connectedDevices.get(deviceName);
+  if (!dev) return res.json({ message: "Thiết bị không tồn tại" });
 
-  const result = await handleSearchMusic({ query: q, limit: 5 });
-  res.json(result);
+  if (dev.reconnectTimer) clearTimeout(dev.reconnectTimer);
+  if (dev.ws) dev.ws.close();
+  connectedDevices.delete(deviceName);
+
+  res.json({ success: true, message: `Đã ngắt kết nối "${deviceName}"` });
 });
 
+// Danh sách thiết bị
+app.get("/api/devices", (req, res) => {
+  const list = [];
+  connectedDevices.forEach((dev, name) => {
+    list.push({
+      name,
+      status: dev.status,
+      url: dev.url.replace(/token=.{10,}/, "token=***"),
+      connectedAt: dev.connectedAt
+    });
+  });
+  res.json({ devices: list });
+});
+
+// Info
+app.get("/api", (req, res) => {
+  res.json({
+    name: "VN Music MCP Server",
+    version: "1.0.0",
+    source: BASE,
+    connectedDevices: connectedDevices.size,
+    tools: MCP_TOOLS.map(t => ({ name: t.name, description: t.description }))
+  });
+});
+
+// REST search
+app.get("/search", async (req, res) => {
+  const q = req.query.q;
+  if (!q) return res.json({ error: "Thiếu ?q=" });
+  res.json(await handleSearchMusic({ query: q, limit: 5 }));
+});
+
+// REST play
 app.get("/play", (req, res) => {
   const id = req.query.id;
-  if (!id) return res.json({ error: "Thiếu tham số id. Ví dụ: /play?id=ZW79ZBE8" });
+  if (!id) return res.json({ error: "Thiếu ?id=" });
   res.redirect(`${BASE}/api/song/stream?id=${id}`);
 });
 
-app.get("/charts", async (req, res) => {
-  const result = await handleGetTopCharts({ limit: 10 });
-  res.json(result);
-});
-
-// Health check
+// Health
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
-    clients: sseClients.size,
+    devices: connectedDevices.size,
     uptime: Math.floor(process.uptime()) + "s",
     time: new Date().toISOString()
   });
 });
 
-// ─── Start Server ────────────────────────────────────────────────────────────
+// ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("===================================");
   console.log(" 🎵 VN Music MCP Server");
   console.log(`    http://localhost:${PORT}`);
   console.log("===================================");
-  console.log(` SSE:      http://localhost:${PORT}/sse`);
-  console.log(` Search:   http://localhost:${PORT}/search?q=sontung`);
-  console.log(` Play:     http://localhost:${PORT}/play?id=ZW79ZBE8`);
-  console.log(` Charts:   http://localhost:${PORT}/charts`);
-  console.log(` Health:   http://localhost:${PORT}/health`);
+  console.log(` Connect API: POST /api/connect`);
+  console.log(` Devices:     GET  /api/devices`);
+  console.log(` Search:      GET  /search?q=xxx`);
   console.log("===================================");
 });

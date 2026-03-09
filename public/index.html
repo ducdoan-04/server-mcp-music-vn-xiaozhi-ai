@@ -4,766 +4,323 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🎵 VN Music MCP – Xiaozhi Portal</title>
-  <meta name="description" content="MCP Server âm nhạc Việt Nam cho Xiaozhi.me – Tìm kiếm và phát nhạc bằng giọng nói" />
+  <meta name="description" content="Kết nối MCP âm nhạc Việt Nam cho thiết bị Xiaozhi.me" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0d0d14;
+      --surface:#13131e;
+      --card:#1a1a2a;
+      --border:rgba(255,255,255,0.08);
+      --accent:#7c3aed;
+      --accent2:#06b6d4;
+      --green:#10b981;
+      --red:#ef4444;
+      --yellow:#f59e0b;
+      --text:#f1f5f9;
+      --muted:#94a3b8;
+    }
+    html{scroll-behavior:smooth}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 
-    :root {
-      --bg:        #0a0a0f;
-      --surface:   #12121a;
-      --card:      #1a1a28;
-      --border:    rgba(255,255,255,0.08);
-      --accent:    #7c3aed;
-      --accent2:   #06b6d4;
-      --green:     #10b981;
-      --red:       #ef4444;
-      --text:      #f1f5f9;
-      --muted:     #94a3b8;
-      --glow:      rgba(124,58,237,0.35);
-    }
+    /* orbs */
+    .orb{position:fixed;border-radius:50%;filter:blur(130px);pointer-events:none;z-index:0;opacity:.35}
+    .o1{width:500px;height:500px;background:#7c3aed;top:-180px;left:-150px}
+    .o2{width:400px;height:400px;background:#06b6d4;bottom:-100px;right:-100px}
 
-    html { scroll-behavior: smooth; }
+    .wrap{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:0 1.25rem 4rem}
 
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
+    /* header */
+    header{text-align:center;padding:3.5rem 1rem 2rem}
+    .badge{display:inline-flex;align-items:center;gap:.4rem;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.35);color:#a78bfa;padding:.28rem .9rem;border-radius:99px;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:1rem}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 7px var(--green);animation:blink 1.8s ease-in-out infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+    h1{font-size:clamp(2rem,6vw,3.2rem);font-weight:800;background:linear-gradient(135deg,#fff 0%,#a78bfa 55%,#38bdf8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.15;margin-bottom:.7rem}
+    header p{color:var(--muted);font-size:1rem;line-height:1.7;max-width:480px;margin:0 auto}
 
-    /* ─── Background orbs ──────────────────────── */
-    .orb {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(120px);
-      pointer-events: none;
-      z-index: 0;
-      opacity: 0.4;
-    }
-    .orb-1 { width: 500px; height: 500px; background: #7c3aed; top: -150px; left: -150px; }
-    .orb-2 { width: 400px; height: 400px; background: #06b6d4; bottom: -100px; right: -100px; }
-    .orb-3 { width: 300px; height: 300px; background: #10b981; top: 50%; left: 50%; transform: translate(-50%,-50%); opacity: 0.15; }
+    /* Guide bar */
+    .guide-bar{display:flex;gap:.75rem;margin-bottom:1.2rem}
+    .guide-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.85rem 1rem;border-radius:12px;font-size:.85rem;font-weight:700;cursor:pointer;border:none;text-decoration:none;transition:all .25s}
+    .guide-btn.blue{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;box-shadow:0 4px 15px rgba(37,99,235,.35)}
+    .guide-btn.blue:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(37,99,235,.5)}
+    .guide-btn.yellow{background:linear-gradient(135deg,#d97706,#b45309);color:#fff;box-shadow:0 4px 15px rgba(217,119,6,.35)}
+    .guide-btn.yellow:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(217,119,6,.5)}
 
-    .wrapper { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+    /* Main connect card */
+    .main-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:2rem;margin-bottom:1.2rem;transition:border-color .3s}
+    .main-card:hover{border-color:rgba(124,58,237,.3)}
+    .card-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:1.2rem}
 
-    /* ─── Header ───────────────────────────────── */
-    header {
-      text-align: center;
-      padding: 4rem 1rem 2.5rem;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      background: rgba(124,58,237,0.15);
-      border: 1px solid rgba(124,58,237,0.35);
-      color: #a78bfa;
-      padding: 0.3rem 0.9rem;
-      border-radius: 99px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      margin-bottom: 1.2rem;
-      text-transform: uppercase;
-    }
-    .badge span { animation: pulse-dot 1.5s ease-in-out infinite; }
-    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .form-row{margin-bottom:1rem}
+    label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:.4rem}
+    input{width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.72rem 1rem;color:var(--text);font-size:.9rem;font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
+    input:focus{border-color:rgba(124,58,237,.55);box-shadow:0 0 0 3px rgba(124,58,237,.12)}
+    input::placeholder{color:rgba(148,163,184,.35)}
 
-    header h1 {
-      font-size: clamp(2.2rem, 6vw, 3.5rem);
-      font-weight: 800;
-      line-height: 1.15;
-      background: linear-gradient(135deg, #fff 0%, #a78bfa 50%, #38bdf8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 0.8rem;
-    }
-    header p {
-      color: var(--muted);
-      font-size: 1.05rem;
-      max-width: 520px;
-      margin: 0 auto;
-      line-height: 1.7;
-    }
+    .btn-connect{width:100%;padding:.9rem;border-radius:12px;border:none;background:linear-gradient(135deg,var(--accent),#9333ea);color:#fff;font-size:.95rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.6rem;transition:all .25s;box-shadow:0 4px 20px rgba(124,58,237,.35);margin-top:.5rem}
+    .btn-connect:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 28px rgba(124,58,237,.55)}
+    .btn-connect:disabled{opacity:.6;cursor:not-allowed;transform:none}
 
-    /* ─── Status bar ───────────────────────────── */
-    .status-bar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.6rem;
-      margin-top: 1.8rem;
-      font-size: 0.85rem;
-    }
-    .status-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
-      animation: blink 2s ease-in-out infinite;
-    }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    .status-text { color: var(--green); font-weight: 600; }
-    .status-sep { color: var(--border); }
-    .status-info { color: var(--muted); }
+    .btn-delete{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--red);padding:.38rem .7rem;border-radius:8px;cursor:pointer;font-size:.75rem;font-weight:600;transition:all .2s}
+    .btn-delete:hover{background:rgba(239,68,68,.2)}
 
-    /* ─── Cards ────────────────────────────────── */
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.6rem;
-      margin-bottom: 1.2rem;
-      transition: border-color 0.3s, box-shadow 0.3s;
-    }
-    .card:hover { border-color: rgba(124,58,237,0.4); box-shadow: 0 0 30px rgba(124,58,237,0.1); }
-    .card-title {
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      margin-bottom: 1rem;
-    }
+    /* Message */
+    .msg{padding:.7rem 1rem;border-radius:10px;font-size:.83rem;font-weight:500;margin-top:.8rem;display:none}
+    .msg.ok{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:var(--green)}
+    .msg.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:var(--red)}
+    .msg.show{display:block}
 
-    /* ─── SSE URL box ──────────────────────────── */
-    .url-hero {
-      background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(6,182,212,0.08));
-      border: 1px solid rgba(124,58,237,0.3);
-      border-radius: 16px;
-      padding: 2rem;
-      text-align: center;
-      margin-bottom: 1.2rem;
-      position: relative;
-      overflow: hidden;
-    }
-    .url-hero::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.15) 0%, transparent 70%);
-      pointer-events: none;
-    }
-    .url-hero h2 {
-      font-size: 1rem;
-      color: var(--muted);
-      font-weight: 500;
-      margin-bottom: 0.5rem;
-    }
-    .url-hero .sse-label {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #a78bfa;
-      font-weight: 700;
-      margin-bottom: 0.8rem;
-    }
-    .url-box {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      background: rgba(0,0,0,0.4);
-      border: 1px solid rgba(124,58,237,0.25);
-      border-radius: 10px;
-      padding: 0.75rem 1rem;
-      font-family: 'Courier New', monospace;
-      font-size: 0.9rem;
-      color: #38bdf8;
-      word-break: break-all;
-    }
-    .url-box .url-text { flex: 1; text-align: left; }
-    .copy-btn {
-      background: rgba(124,58,237,0.2);
-      border: 1px solid rgba(124,58,237,0.3);
-      color: #a78bfa;
-      padding: 0.4rem 0.8rem;
-      border-radius: 7px;
-      cursor: pointer;
-      font-size: 0.78rem;
-      font-weight: 600;
-      white-space: nowrap;
-      transition: all 0.2s;
-      flex-shrink: 0;
-    }
-    .copy-btn:hover { background: rgba(124,58,237,0.35); transform: translateY(-1px); }
-    .copy-btn.copied { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: var(--green); }
+    /* Devices list */
+    .devices-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:1.6rem;margin-bottom:1.2rem}
+    .devices-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+    .device-count{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .device-count span{color:var(--green);margin-left:.3rem}
+    .refresh-btn{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted);padding:.3rem .7rem;border-radius:7px;font-size:.75rem;cursor:pointer;transition:all .2s}
+    .refresh-btn:hover{background:rgba(255,255,255,.1);color:var(--text)}
 
-    /* ─── Xiaozhi WSS Form ─────────────────────── */
-    .wss-card {
-      background: linear-gradient(135deg, rgba(6,182,212,0.08), rgba(16,185,129,0.05));
-      border: 1px solid rgba(6,182,212,0.2);
-    }
-    .wss-card .card-title { color: #38bdf8; }
-    .form-group { margin-bottom: 1rem; }
-    label {
-      display: block;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 0.4rem;
-    }
-    input[type="text"] {
-      width: 100%;
-      background: rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 10px;
-      padding: 0.7rem 1rem;
-      color: var(--text);
-      font-size: 0.9rem;
-      font-family: 'Courier New', monospace;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    input[type="text"]:focus {
-      border-color: rgba(6,182,212,0.5);
-      box-shadow: 0 0 0 3px rgba(6,182,212,0.1);
-    }
-    input[type="text"]::placeholder { color: rgba(148,163,184,0.4); }
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.7rem 1.4rem;
-      border-radius: 10px;
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      transition: all 0.25s;
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #9333ea);
-      color: #fff;
-      box-shadow: 0 4px 15px rgba(124,58,237,0.35);
-    }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(124,58,237,0.5); }
-    .btn-secondary {
-      background: rgba(255,255,255,0.07);
-      color: var(--muted);
-      border: 1px solid var(--border);
-    }
-    .btn-secondary:hover { background: rgba(255,255,255,0.12); color: var(--text); }
-    .btn-row { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .device-item{display:flex;align-items:center;gap:.9rem;padding:.75rem .9rem;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:12px;margin-bottom:.6rem;transition:all .2s}
+    .device-item:hover{border-color:rgba(124,58,237,.3)}
+    .device-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,rgba(124,58,237,.2),rgba(6,182,212,.15));display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+    .device-info{flex:1;min-width:0}
+    .device-name{font-size:.88rem;font-weight:600}
+    .device-url{font-size:.72rem;color:var(--muted);font-family:'Courier New',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.15rem}
+    .device-status{display:flex;align-items:center;gap:.35rem;font-size:.72rem;font-weight:600;flex-shrink:0}
+    .status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .s-connected .status-dot{background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s ease-in-out infinite}
+    .s-connected .status-txt{color:var(--green)}
+    .s-connecting .status-dot{background:var(--yellow)}
+    .s-connecting .status-txt{color:var(--yellow)}
+    .s-disconnected .status-dot,.s-error .status-dot{background:var(--red)}
+    .s-disconnected .status-txt,.s-error .status-txt{color:var(--red)}
 
-    .wss-saved {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: rgba(16,185,129,0.1);
-      border: 1px solid rgba(16,185,129,0.25);
-      border-radius: 8px;
-      padding: 0.6rem 0.9rem;
-      font-size: 0.82rem;
-      color: var(--green);
-      margin-top: 0.8rem;
-      display: none;
-    }
+    .no-devices{text-align:center;padding:2rem;color:var(--muted);font-size:.85rem}
+    .no-devices span{display:block;font-size:2rem;margin-bottom:.5rem;opacity:.4}
 
-    /* ─── Tools grid ───────────────────────────── */
-    .tools-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 1rem;
-      margin-bottom: 1.2rem;
-    }
-    .tool-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 1.4rem;
-      transition: all 0.3s;
-      cursor: default;
-    }
-    .tool-card:hover {
-      border-color: rgba(124,58,237,0.4);
-      transform: translateY(-3px);
-      box-shadow: 0 10px 30px rgba(124,58,237,0.12);
-    }
-    .tool-icon {
-      font-size: 1.8rem;
-      margin-bottom: 0.8rem;
-    }
-    .tool-name {
-      font-size: 0.88rem;
-      font-weight: 700;
-      color: #a78bfa;
-      font-family: 'Courier New', monospace;
-      margin-bottom: 0.4rem;
-    }
-    .tool-desc {
-      font-size: 0.82rem;
-      color: var(--muted);
-      line-height: 1.6;
-    }
+    /* Tools */
+    .tools-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-bottom:1.2rem}
+    @media(max-width:580px){.tools-row{grid-template-columns:1fr}}
+    .tool-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem;transition:all .3s}
+    .tool-card:hover{border-color:rgba(124,58,237,.4);transform:translateY(-3px);box-shadow:0 10px 28px rgba(124,58,237,.1)}
+    .tool-icon{font-size:1.6rem;margin-bottom:.6rem}
+    .tool-name{font-size:.8rem;font-weight:700;color:#a78bfa;font-family:'Courier New',monospace;margin-bottom:.3rem}
+    .tool-desc{font-size:.77rem;color:var(--muted);line-height:1.6}
 
-    /* ─── Search demo ──────────────────────────── */
-    .search-demo {
-      display: flex;
-      gap: 0.6rem;
-    }
-    .search-demo input { flex: 1; }
-    .search-results {
-      margin-top: 1rem;
-      display: none;
-    }
-    .song-item {
-      display: flex;
-      align-items: center;
-      gap: 0.9rem;
-      padding: 0.7rem 0.9rem;
-      border-radius: 10px;
-      background: rgba(0,0,0,0.25);
-      border: 1px solid var(--border);
-      margin-bottom: 0.5rem;
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-    .song-item:hover { border-color: rgba(124,58,237,0.4); background: rgba(124,58,237,0.08); }
-    .song-thumb {
-      width: 42px; height: 42px;
-      border-radius: 8px;
-      object-fit: cover;
-      background: rgba(255,255,255,0.05);
-      flex-shrink: 0;
-    }
-    .song-info { flex: 1; min-width: 0; }
-    .song-title {
-      font-size: 0.88rem;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .song-artist {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 0.15rem;
-    }
-    .song-duration {
-      font-size: 0.75rem;
-      color: var(--muted);
-      flex-shrink: 0;
-    }
-    .play-btn-inline {
-      background: var(--accent);
-      border: none;
-      color: #fff;
-      width: 30px; height: 30px;
-      border-radius: 50%;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-      transition: all 0.2s;
-      flex-shrink: 0;
-    }
-    .play-btn-inline:hover { transform: scale(1.1); box-shadow: 0 0 10px rgba(124,58,237,0.5); }
+    /* spinner */
+    .spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:rotate .7s linear infinite;display:inline-block}
+    @keyframes rotate{to{transform:rotate(360deg)}}
+    .hidden{display:none!important}
 
-    /* ─── Steps ────────────────────────────────── */
-    .steps { counter-reset: step; }
-    .step {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1rem;
-      align-items: flex-start;
-    }
-    .step-num {
-      counter-increment: step;
-      width: 32px; height: 32px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--accent), #9333ea);
-      color: #fff;
-      font-weight: 700;
-      font-size: 0.82rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      margin-top: 0.1rem;
-    }
-    .step-content { flex: 1; }
-    .step-content strong {
-      display: block;
-      font-size: 0.9rem;
-      font-weight: 600;
-      margin-bottom: 0.25rem;
-    }
-    .step-content span {
-      font-size: 0.82rem;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-    code {
-      background: rgba(124,58,237,0.15);
-      color: #a78bfa;
-      padding: 0.1rem 0.4rem;
-      border-radius: 4px;
-      font-family: 'Courier New', monospace;
-      font-size: 0.85em;
-    }
+    /* toast */
+    #toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--card);border:1px solid var(--border);padding:.7rem 1.1rem;border-radius:10px;font-size:.83rem;z-index:9999;transform:translateY(12px);opacity:0;transition:all .3s;pointer-events:none;max-width:300px}
+    #toast.show{transform:translateY(0);opacity:1}
+    #toast.ok{border-color:rgba(16,185,129,.4);color:var(--green)}
+    #toast.err{border-color:rgba(239,68,68,.4);color:var(--red)}
 
-    /* ─── Grid 2 cols ──────────────────────────── */
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
-    @media (max-width: 620px) { .grid-2 { grid-template-columns: 1fr; } }
-
-    /* ─── Footer ───────────────────────────────── */
-    footer {
-      text-align: center;
-      padding-top: 2rem;
-      border-top: 1px solid var(--border);
-      margin-top: 1rem;
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
-    footer a { color: #a78bfa; text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-
-    /* ─── Loading spinner ──────────────────────── */
-    .spinner {
-      width: 18px; height: 18px;
-      border: 2px solid rgba(255,255,255,0.2);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      display: inline-block;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .hidden { display: none !important; }
-
-    /* ─── Toast ─────────────────────────────────── */
-    #toast {
-      position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      background: var(--card);
-      border: 1px solid var(--border);
-      padding: 0.8rem 1.2rem;
-      border-radius: 10px;
-      font-size: 0.85rem;
-      color: var(--text);
-      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
-      z-index: 1000;
-      transform: translateY(20px);
-      opacity: 0;
-      transition: all 0.3s;
-      pointer-events: none;
-    }
-    #toast.show { transform: translateY(0); opacity: 1; }
-    #toast.success { border-color: rgba(16,185,129,0.4); color: var(--green); }
-    #toast.error { border-color: rgba(239,68,68,0.4); color: var(--red); }
-
-    /* ─── Eq animation on playing ──────────────── */
-    .eq {
-      display: inline-flex;
-      align-items: flex-end;
-      gap: 2px;
-      height: 16px;
-    }
-    .eq span {
-      width: 3px;
-      background: var(--green);
-      border-radius: 1px;
-      animation: eq 0.8s ease-in-out infinite;
-    }
-    .eq span:nth-child(2) { animation-delay: 0.1s; }
-    .eq span:nth-child(3) { animation-delay: 0.2s; }
-    .eq span:nth-child(4) { animation-delay: 0.05s; }
-    @keyframes eq {
-      0%,100%{ height: 4px; }
-      50%{ height: 14px; }
-    }
+    footer{text-align:center;padding-top:1.5rem;border-top:1px solid var(--border);font-size:.77rem;color:var(--muted)}
+    footer a{color:#a78bfa;text-decoration:none}
   </style>
 </head>
 <body>
+<div class="orb o1"></div>
+<div class="orb o2"></div>
 
-<div class="orb orb-1"></div>
-<div class="orb orb-2"></div>
-<div class="orb orb-3"></div>
-
-<div class="wrapper">
-  <!-- Header -->
+<div class="wrap">
   <header>
-    <div class="badge"><span>●</span> Live Server</div>
+    <div class="badge"><span class="dot"></span> MCP Music Server</div>
     <h1>🎵 VN Music MCP</h1>
-    <p>MCP Server âm nhạc Việt Nam chuẩn SSE<br>Kết nối <strong>Xiaozhi</strong> để tìm & phát nhạc bằng giọng nói</p>
-    <div class="status-bar">
-      <div class="status-dot"></div>
-      <span class="status-text" id="status-text">Server đang hoạt động</span>
-      <span class="status-sep">·</span>
-      <span class="status-info" id="status-clients">0 clients</span>
-      <span class="status-sep">·</span>
-      <span class="status-info" id="status-uptime">0s</span>
-    </div>
+    <p>Mở rộng khả năng âm nhạc cho thiết bị Xiaozhi<br>Tìm &amp; phát nhạc Việt bằng giọng nói</p>
   </header>
 
-  <!-- SSE URL hero -->
-  <div class="url-hero">
-    <div class="sse-label">📡 MCP SSE Endpoint – Dán vào Xiaozhi</div>
-    <div class="url-box">
-      <span class="url-text" id="sse-url">Đang tải...</span>
-      <button class="copy-btn" id="copy-sse" onclick="copySSE()">📋 Sao chép</button>
-    </div>
-    <p style="font-size:0.78rem;color:var(--muted);margin-top:0.8rem;">
-      Xiaozhi → Settings → Add MCP Server → dán URL trên
-    </p>
+  <!-- Guide buttons -->
+  <div class="guide-bar">
+    <a class="guide-btn blue" href="https://mcp.bonion.io.vn/mcp.html" target="_blank">💡 Cách sử dụng MCP</a>
+    <a class="guide-btn yellow" href="https://youtu.be/1yIDnwCz0k4" target="_blank">🎬 Cách lấy WSS URL</a>
   </div>
 
-  <!-- Grid: WSS form + How to connect -->
-  <div class="grid-2">
-
-    <!-- Xiaozhi WSS Config -->
-    <div class="card wss-card">
-      <div class="card-title">🤖 Xiaozhi WSS URL của bạn</div>
-      <div class="form-group">
-        <label for="wss-input">WebSocket URL (từ xiaozhi.me)</label>
-        <input type="text" id="wss-input" placeholder="wss://api.xiaozhi.me/mcp/..." />
-      </div>
-      <div class="form-group">
-        <label for="device-name">Tên thiết bị (tùy chọn)</label>
-        <input type="text" id="device-name" placeholder="Ví dụ: Otto Robot, ESP32..." />
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="saveWSS()">💾 Lưu WSS</button>
-        <button class="btn btn-secondary" onclick="clearWSS()">✕ Xóa</button>
-      </div>
-      <div class="wss-saved" id="wss-saved">✅ Đã lưu WSS URL thành công!</div>
+  <!-- Connect form -->
+  <div class="main-card">
+    <div class="card-label">🤖 Kết nối thiết bị Xiaozhi</div>
+    <div class="form-row">
+      <label for="inp-name">Tên Thiết Bị</label>
+      <input id="inp-name" type="text" placeholder="Nhập tên thiết bị của bạn" autocomplete="off" />
     </div>
+    <div class="form-row">
+      <label for="inp-wss">WebSocket URL</label>
+      <input id="inp-wss" type="text" placeholder="wss://api.xiaozhi.me/mcp/?token=..." autocomplete="off" />
+    </div>
+    <button class="btn-connect" id="btn-connect" onclick="doConnect()">
+      <span id="conn-spinner" class="spin hidden"></span>
+      <span id="conn-label">🔌 KẾT NỐI MCP</span>
+      <span style="background:rgba(255,255,255,.15);padding:.1rem .5rem;border-radius:5px;font-size:.7rem">MIỄN PHÍ</span>
+    </button>
+    <div class="msg" id="conn-msg"></div>
+  </div>
 
-    <!-- Hướng dẫn -->
-    <div class="card">
-      <div class="card-title">📖 Cách kết nối Xiaozhi</div>
-      <div class="steps">
-        <div class="step">
-          <div class="step-num">1</div>
-          <div class="step-content">
-            <strong>Lấy WSS URL</strong>
-            <span>Đăng nhập <a href="https://xiaozhi.me" target="_blank" style="color:#a78bfa">xiaozhi.me</a> → chọn thiết bị → copy WSS URL</span>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <div class="step-content">
-            <strong>Thêm MCP vào Xiaozhi</strong>
-            <span>Settings → Add MCP Server → dán URL <code>/sse</code> phía trên</span>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">3</div>
-          <div class="step-content">
-            <strong>Nói chuyện với Xiaozhi</strong>
-            <span>"Tìm bài <em>Lạc Trôi</em>" hoặc "Phát nhạc Sơn Tùng"</span>
-          </div>
-        </div>
-      </div>
+  <!-- Connected devices -->
+  <div class="devices-card">
+    <div class="devices-header">
+      <div class="device-count">Thiết Bị Đã Kết Nối <span id="device-count">0</span></div>
+      <button class="refresh-btn" onclick="loadDevices()">↻ Làm mới</button>
+    </div>
+    <div id="devices-list">
+      <div class="no-devices"><span>📡</span>Chưa có thiết bị nào kết nối</div>
     </div>
   </div>
 
-  <!-- Tools -->
-  <div class="card" style="margin-bottom:1.2rem">
-    <div class="card-title">🛠️ MCP Tools có sẵn</div>
-    <div class="tools-grid" style="margin:0">
-      <div class="tool-card">
-        <div class="tool-icon">🔍</div>
-        <div class="tool-name">search_music</div>
-        <div class="tool-desc">Tìm kiếm bài hát, ca sĩ nhạc Việt. Hỗ trợ tên tiếng Việt có dấu.</div>
-      </div>
-      <div class="tool-card">
-        <div class="tool-icon">▶️</div>
-        <div class="tool-name">play_music</div>
-        <div class="tool-desc">Lấy link stream MP3 trực tiếp để Xiaozhi phát qua loa.</div>
-      </div>
-      <div class="tool-card">
-        <div class="tool-icon">🔥</div>
-        <div class="tool-name">get_top_charts</div>
-        <div class="tool-desc">Danh sách nhạc hot, trending đang được nghe nhiều nhất.</div>
-      </div>
+  <!-- MCP Tools -->
+  <div class="tools-row">
+    <div class="tool-card">
+      <div class="tool-icon">🔍</div>
+      <div class="tool-name">search_music</div>
+      <div class="tool-desc">Tìm bài hát, ca sĩ nhạc Việt theo tên. Hỗ trợ tiếng Việt có dấu.</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon">▶️</div>
+      <div class="tool-name">play_music</div>
+      <div class="tool-desc">Lấy link stream MP3 để Xiaozhi phát nhạc qua loa trực tiếp.</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon">🔥</div>
+      <div class="tool-name">get_top_charts</div>
+      <div class="tool-desc">Danh sách bài hát đang hot và trending trên Zing MP3 VN.</div>
     </div>
   </div>
 
-  <!-- Search demo -->
-  <div class="card">
-    <div class="card-title">🎧 Thử tìm kiếm nhạc</div>
-    <div class="search-demo">
-      <input type="text" id="search-input" placeholder="Tìm bài hát... (ví dụ: sơn tùng, bích phương)" onkeydown="if(event.key==='Enter')doSearch()" />
-      <button class="btn btn-primary" onclick="doSearch()" id="search-btn">
-        <span id="search-spinner" class="spinner hidden"></span>
-        <span id="search-label">Tìm</span>
-      </button>
-    </div>
-    <div class="search-results" id="search-results"></div>
-  </div>
-
-  <!-- Footer -->
   <footer>
-    <p>🎵 VN Music MCP Server · Nguồn nhạc: <a href="https://mp3.mrhung.io.vn" target="_blank">mp3.mrhung.io.vn</a> · Dùng với <a href="https://xiaozhi.me" target="_blank">Xiaozhi.me</a></p>
+    🎵 VN Music MCP · Nguồn nhạc: <a href="https://mp3.mrhung.io.vn" target="_blank">mp3.mrhung.io.vn</a> · Dùng với <a href="https://xiaozhi.me" target="_blank">Xiaozhi.me</a>
   </footer>
 </div>
 
-<!-- Toast -->
 <div id="toast"></div>
 
 <script>
-  // ─── Config ────────────────────────────────────────────────────────────
-  const SERVER_URL = window.location.origin;
+  const API = window.location.origin;
 
-  // ─── Init ──────────────────────────────────────────────────────────────
-  window.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('sse-url').textContent = `${SERVER_URL}/sse`;
-    loadSavedWSS();
-    fetchStatus();
-    setInterval(fetchStatus, 10000);
-  });
+  // Load devices on start
+  loadDevices();
+  setInterval(loadDevices, 8000);
 
-  // ─── Server status ─────────────────────────────────────────────────────
-  async function fetchStatus() {
+  async function doConnect() {
+    const name = document.getElementById('inp-name').value.trim();
+    const wss  = document.getElementById('inp-wss').value.trim();
+    const msg  = document.getElementById('conn-msg');
+
+    if (!name) { showMsg('⚠️ Vui lòng nhập tên thiết bị!', 'err'); return; }
+    if (!wss)  { showMsg('⚠️ Vui lòng nhập WSS URL!', 'err'); return; }
+    if (!wss.startsWith('wss://')) { showMsg('⚠️ WSS URL phải bắt đầu bằng wss://', 'err'); return; }
+
+    setLoading(true);
+    showMsg('', '');
+
     try {
-      const r = await fetch(`${SERVER_URL}/health`);
+      const r = await fetch(`${API}/api/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceName: name, wssUrl: wss })
+      });
       const d = await r.json();
-      document.getElementById('status-text').textContent = 'Server đang hoạt động';
-      document.getElementById('status-clients').textContent = `${d.clients} clients`;
-      document.getElementById('status-uptime').textContent = `Uptime: ${d.uptime}`;
-    } catch {
-      document.getElementById('status-text').textContent = 'Không kết nối được';
-      document.getElementById('status-text').style.color = 'var(--red)';
-    }
-  }
 
-  // ─── Copy SSE URL ───────────────────────────────────────────────────────
-  function copySSE() {
-    const url = document.getElementById('sse-url').textContent;
-    navigator.clipboard.writeText(url).then(() => {
-      const btn = document.getElementById('copy-sse');
-      btn.textContent = '✅ Đã sao chép!';
-      btn.classList.add('copied');
-      setTimeout(() => {
-        btn.textContent = '📋 Sao chép';
-        btn.classList.remove('copied');
-      }, 2000);
-      showToast('Đã sao chép SSE URL!', 'success');
-    });
-  }
-
-  // ─── WSS Management ────────────────────────────────────────────────────
-  function saveWSS() {
-    const wss = document.getElementById('wss-input').value.trim();
-    const name = document.getElementById('device-name').value.trim();
-    if (!wss) { showToast('Vui lòng nhập WSS URL!', 'error'); return; }
-    if (!wss.startsWith('wss://')) { showToast('WSS URL phải bắt đầu bằng wss://', 'error'); return; }
-    localStorage.setItem('xiaozhi_wss', wss);
-    localStorage.setItem('xiaozhi_device', name);
-    const saved = document.getElementById('wss-saved');
-    saved.style.display = 'flex';
-    showToast(`✅ Đã lưu WSS cho thiết bị "${name || 'Xiaozhi'}"`, 'success');
-    setTimeout(() => { saved.style.display = 'none'; }, 3000);
-  }
-
-  function clearWSS() {
-    localStorage.removeItem('xiaozhi_wss');
-    localStorage.removeItem('xiaozhi_device');
-    document.getElementById('wss-input').value = '';
-    document.getElementById('device-name').value = '';
-    showToast('Đã xóa WSS URL', 'success');
-  }
-
-  function loadSavedWSS() {
-    const wss = localStorage.getItem('xiaozhi_wss');
-    const name = localStorage.getItem('xiaozhi_device');
-    if (wss) document.getElementById('wss-input').value = wss;
-    if (name) document.getElementById('device-name').value = name;
-  }
-
-  // ─── Search music ───────────────────────────────────────────────────────
-  async function doSearch() {
-    const q = document.getElementById('search-input').value.trim();
-    if (!q) return;
-
-    const btn = document.getElementById('search-btn');
-    const spinner = document.getElementById('search-spinner');
-    const label = document.getElementById('search-label');
-    spinner.classList.remove('hidden');
-    label.textContent = '...';
-    btn.disabled = true;
-
-    try {
-      const r = await fetch(`${SERVER_URL}/search?q=${encodeURIComponent(q)}`);
-      const data = await r.json();
-      renderSongs(data.songs || []);
-    } catch (err) {
-      showToast('Lỗi kết nối server', 'error');
+      if (d.success) {
+        showMsg(d.message, 'ok');
+        toast('✅ ' + d.message, 'ok');
+        document.getElementById('inp-name').value = '';
+        document.getElementById('inp-wss').value = '';
+        loadDevices();
+      } else {
+        showMsg('❌ ' + (d.error || 'Kết nối thất bại'), 'err');
+        toast('❌ ' + (d.error || 'Thất bại'), 'err');
+      }
+    } catch (e) {
+      showMsg('❌ Lỗi server: ' + e.message, 'err');
     } finally {
-      spinner.classList.add('hidden');
-      label.textContent = 'Tìm';
-      btn.disabled = false;
+      setLoading(false);
     }
   }
 
-  function renderSongs(songs) {
-    const container = document.getElementById('search-results');
-    container.style.display = 'block';
+  async function disconnectDevice(name) {
+    try {
+      await fetch(`${API}/api/disconnect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceName: name })
+      });
+      toast(`🔌 Đã ngắt kết nối "${name}"`, 'ok');
+      loadDevices();
+    } catch(e) {
+      toast('Lỗi: ' + e.message, 'err');
+    }
+  }
 
-    if (songs.length === 0) {
-      container.innerHTML = `<p style="color:var(--muted);font-size:0.85rem;text-align:center;padding:1rem">Không tìm thấy bài hát nào</p>`;
+  async function loadDevices() {
+    try {
+      const r = await fetch(`${API}/api/devices`);
+      const d = await r.json();
+      renderDevices(d.devices || []);
+    } catch {}
+  }
+
+  function renderDevices(devices) {
+    const cnt = document.getElementById('device-count');
+    const list = document.getElementById('devices-list');
+    cnt.textContent = devices.length;
+
+    if (devices.length === 0) {
+      list.innerHTML = `<div class="no-devices"><span>📡</span>Chưa có thiết bị nào kết nối</div>`;
       return;
     }
 
-    container.innerHTML = songs.map((s, i) => `
-      <div class="song-item" id="song-${i}">
-        <img class="song-thumb" src="${s.thumbnail}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2242%22 height=%2242%22><rect fill=%22%231a1a28%22 width=%2242%22 height=%2242%22/><text y=%2228%22 x=%2211%22 font-size=%2220%22>🎵</text></svg>'" />
-        <div class="song-info">
-          <div class="song-title" title="${s.title}">${s.title}</div>
-          <div class="song-artist">${s.artist} · ${s.duration}</div>
-        </div>
-        <button class="play-btn-inline" onclick="playSong('${s.encodeId}','${s.streamUrl}',${i})" title="Phát bài hát">▶</button>
-      </div>
-    `).join('');
+    list.innerHTML = devices.map(d => {
+      const sc = `s-${d.status}`;
+      const stxt = { connected:'Đang kết nối', connecting:'Đang kết nối...', disconnected:'Mất kết nối', error:'Lỗi' }[d.status] || d.status;
+      const shortUrl = d.url.replace('wss://api.xiaozhi.me/mcp/', 'wss://...xiaozhi...').substring(0, 55) + '...';
+      const since = d.connectedAt ? new Date(d.connectedAt).toLocaleTimeString('vi-VN') : '';
+      return `
+        <div class="device-item">
+          <div class="device-icon">🤖</div>
+          <div class="device-info">
+            <div class="device-name">${esc(d.name)}</div>
+            <div class="device-url">${esc(shortUrl)}${since ? ' · ' + since : ''}</div>
+          </div>
+          <div class="device-status ${sc}">
+            <div class="status-dot"></div>
+            <span class="status-txt">${stxt}</span>
+          </div>
+          <button class="btn-delete" onclick="disconnectDevice('${esc(d.name)}')">✕ Xóa</button>
+        </div>`;
+    }).join('');
   }
 
-  let currentAudio = null;
-  let playingIdx = -1;
-
-  function playSong(encodeId, streamUrl, idx) {
-    if (currentAudio) {
-      currentAudio.pause();
-      // reset previous icon
-      const prevBtn = document.querySelector(`#song-${playingIdx} .play-btn-inline`);
-      if (prevBtn) prevBtn.innerHTML = '▶';
-    }
-    if (playingIdx === idx) {
-      currentAudio = null;
-      playingIdx = -1;
-      return;
-    }
-    currentAudio = new Audio(streamUrl);
-    currentAudio.play().then(() => {
-      playingIdx = idx;
-      const btn = document.querySelector(`#song-${idx} .play-btn-inline`);
-      if (btn) btn.innerHTML = `<div class="eq"><span></span><span></span><span></span><span></span></div>`;
-      showToast('🎵 Đang phát nhạc...', 'success');
-    }).catch(err => {
-      showToast('Không thể phát nhạc này', 'error');
-    });
-    currentAudio.onended = () => {
-      playingIdx = -1;
-      const btn = document.querySelector(`#song-${idx} .play-btn-inline`);
-      if (btn) btn.innerHTML = '▶';
-    };
+  function setLoading(on) {
+    document.getElementById('btn-connect').disabled = on;
+    document.getElementById('conn-spinner').classList.toggle('hidden', !on);
+    document.getElementById('conn-label').textContent = on ? 'Đang kết nối...' : '🔌 KẾT NỐI MCP';
   }
 
-  // ─── Toast ──────────────────────────────────────────────────────────────
-  let toastTimer;
-  function showToast(msg, type = '') {
+  function showMsg(txt, type) {
+    const el = document.getElementById('conn-msg');
+    el.textContent = txt;
+    el.className = 'msg' + (txt ? ' show ' + type : '');
+  }
+
+  let toastTmr;
+  function toast(msg, type) {
     const el = document.getElementById('toast');
     el.textContent = msg;
     el.className = `show ${type}`;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.className = ''; }, 2800);
+    clearTimeout(toastTmr);
+    toastTmr = setTimeout(() => el.className = '', 3000);
   }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // Enter key
+  ['inp-name','inp-wss'].forEach(id =>
+    document.getElementById(id).addEventListener('keydown', e => e.key === 'Enter' && doConnect())
+  );
 </script>
 </body>
 </html>
