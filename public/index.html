@@ -128,9 +128,9 @@
 
 <div class="wrap">
   <header>
-    <div class="badge"><span class="dot"></span> MCP Music Server</div>
-    <h1>🎵 VN Music MCP</h1>
-    <p>Mở rộng khả năng âm nhạc cho thiết bị Xiaozhi<br>Tìm &amp; phát nhạc Việt bằng giọng nói</p>
+    <div class="badge"><span class="dot"></span> MCP AI Server</div>
+    <h1>🧠 VN Music + AI MCP</h1>
+    <p>Mở rộng trí tuệ AI cho thiết bị Xiaozhi<br>Nhạc Việt + <span id="total-tools-badge" style="color:#a78bfa;font-weight:700">80+</span> công cụ AI</p>
   </header>
 
   <!-- Guide buttons -->
@@ -169,42 +169,32 @@
     </div>
   </div>
 
-  <!-- MCP Tools -->
-  <div class="tools-row">
-    <div class="tool-card">
-      <div class="tool-icon">🔍</div>
-      <div class="tool-name">search_music</div>
-      <div class="tool-desc">Tìm bài hát, ca sĩ nhạc Việt theo tên. Hỗ trợ tiếng Việt có dấu.</div>
+  <!-- Music Tools -->
+  <div class="devices-card">
+    <div class="devices-header">
+      <div class="device-count">🎶 CÔNG CỤ ÂM NHẠC <span>6</span></div>
     </div>
-    <div class="tool-card">
-      <div class="tool-icon">▶️</div>
-      <div class="tool-name">play_music</div>
-      <div class="tool-desc">Phát nhạc: lấy link stream MP3 để Xiaozhi phát qua loa trực tiếp.</div>
-    </div>
-    <div class="tool-card">
-      <div class="tool-icon">🔗</div>
-      <div class="tool-name">get_stream_url</div>
-      <div class="tool-desc">Lấy link stream trực tiếp (direct MP3 URL) để dùng trong trình phát nhạc.</div>
-    </div>
-    <div class="tool-card">
-      <div class="tool-icon">ℹ️</div>
-      <div class="tool-name">get_song_info</div>
-      <div class="tool-desc">Thông tin chi tiết: ca sĩ, album, thể loại, sáng tác, lượt thích, ảnh bìa.</div>
-    </div>
-    <div class="tool-card">
-      <div class="tool-icon">📝</div>
-      <div class="tool-name">get_lyrics</div>
-      <div class="tool-desc">Lời bài hát có đồng bộ thời gian (synced lyrics) và lời plain text.</div>
-    </div>
-    <div class="tool-card">
-      <div class="tool-icon">🔥</div>
-      <div class="tool-name">get_top_charts</div>
-      <div class="tool-desc">Danh sách bài hát đang hot và trending trên Zing MP3 VN.</div>
+    <div class="tools-row">
+      <div class="tool-card"><div class="tool-icon">🔍</div><div class="tool-name">search_music</div><div class="tool-desc">Tìm bài hát, ca sĩ nhạc Việt</div></div>
+      <div class="tool-card"><div class="tool-icon">▶️</div><div class="tool-name">play_music</div><div class="tool-desc">Phát nhạc qua loa trực tiếp</div></div>
+      <div class="tool-card"><div class="tool-icon">🔗</div><div class="tool-name">get_stream_url</div><div class="tool-desc">Lấy link stream MP3 trực tiếp</div></div>
+      <div class="tool-card"><div class="tool-icon">ℹ️</div><div class="tool-name">get_song_info</div><div class="tool-desc">Thông tin chi tiết bài hát</div></div>
+      <div class="tool-card"><div class="tool-icon">📝</div><div class="tool-name">get_lyrics</div><div class="tool-desc">Lời bài hát đồng bộ thời gian</div></div>
+      <div class="tool-card"><div class="tool-icon">🔥</div><div class="tool-name">get_top_charts</div><div class="tool-desc">Bài hát hot trending</div></div>
     </div>
   </div>
 
+  <!-- Bonion AI Tools -->
+  <div class="devices-card">
+    <div class="devices-header">
+      <div class="device-count">🧠 CÔNG CỤ MỞ RỘNG TRÍ TUỆ AI <span id="bonion-count">...</span></div>
+      <button class="refresh-btn" onclick="toggleBonionTools()" id="bonion-toggle">▼ Xem tất cả</button>
+    </div>
+    <div id="bonion-tools-list" style="display:none"></div>
+  </div>
+
   <footer>
-    🎵 VN Music MCP · Nguồn nhạc: <a href="https://mp3.mrhung.io.vn" target="_blank">mp3.mrhung.io.vn</a> · Dùng với <a href="https://xiaozhi.me" target="_blank">Xiaozhi.me</a>
+    🎵 VN Music + AI MCP · Nguồn nhạc: <a href="https://mp3.mrhung.io.vn" target="_blank">mp3.mrhung.io.vn</a> · AI: <a href="https://mcp.bonion.io.vn" target="_blank">Bonion MCP</a> · Dùng với <a href="https://xiaozhi.me" target="_blank">Xiaozhi.me</a>
   </footer>
 </div>
 
@@ -336,6 +326,49 @@
   ['inp-name','inp-wss'].forEach(id =>
     document.getElementById(id).addEventListener('keydown', e => e.key === 'Enter' && doConnect())
   );
+
+  // ─── Bonion AI Tools ────────────────────────────
+  let bonionLoaded = false;
+  let bonionVisible = false;
+
+  async function loadBonionTools() {
+    if (bonionLoaded) return;
+    try {
+      const r = await fetch(`${API}/api/tools`);
+      const d = await r.json();
+      const tools = d.bonion || [];
+      document.getElementById('bonion-count').textContent = tools.length;
+      document.getElementById('total-tools-badge').textContent = (6 + tools.length);
+
+      const icons = {'Giáo':'📚','Tra':'🔍','Tư Vấn':'💼','Bác':'🩺','Kể':'📖','Xem':'🔮','Trợ':'🤖','Phân':'📊','Kết':'🎰','Tin':'📰','Hôm':'🍜','Công':'🍳','Hướng':'🗺️','Chuyên':'👨‍🍳','Ai là':'🎮','Thần':'✨','Giải':'🧮','Thi':'🚗','Lịch':'📅','Từ':'📘','Địa':'🏛️','Tìm':'📍','Định':'💰','Làm':'✍️','Xổ':'🎲','Giá':'⛽','Tiếu':'😂','Thầy':'🧭','time':'🕐'};
+      function getIcon(name) {
+        for (const [k,v] of Object.entries(icons)) { if (name.startsWith(k)) return v; }
+        return '🧠';
+      }
+
+      document.getElementById('bonion-tools-list').innerHTML =
+        '<div class="tools-row" style="grid-template-columns:repeat(3,1fr)">' +
+        tools.map(t => {
+          const shortName = t.name.split('-')[0] || t.name;
+          return `<div class="tool-card" title="${esc(t.description)}">
+            <div class="tool-icon">${getIcon(shortName)}</div>
+            <div class="tool-name" style="font-size:.72rem">${esc(shortName)}</div>
+            <div class="tool-desc" style="font-size:.68rem">${esc(t.description).substring(0,60)}...</div>
+          </div>`;
+        }).join('') + '</div>';
+      bonionLoaded = true;
+    } catch (e) { console.error(e); }
+  }
+
+  async function toggleBonionTools() {
+    await loadBonionTools();
+    bonionVisible = !bonionVisible;
+    document.getElementById('bonion-tools-list').style.display = bonionVisible ? 'block' : 'none';
+    document.getElementById('bonion-toggle').textContent = bonionVisible ? '▲ Thu gọn' : '▼ Xem tất cả';
+  }
+
+  // Pre-load count
+  loadBonionTools();
 </script>
 </body>
 </html>

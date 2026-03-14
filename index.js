@@ -1,7 +1,7 @@
 /**
- * MCP VN Music Server v2.0
+ * MCP VN Music Server v3.0
  * Server kết nối WebSocket CLIENT tới Xiaozhi.me
- * Features: Search, Play, Stream URL, Song Info, Lyrics, Top Charts
+ * Features: 80+ AI Tools + Music (Search, Play, Stream, Info, Lyrics)
  */
 
 const express = require("express");
@@ -10,6 +10,7 @@ const cors    = require("cors");
 const path    = require("path");
 const WebSocket = require("ws");
 const { v4: uuidv4 } = require("uuid");
+const { getAllBonionMCPTools, handleBonionToolCall, fetchBonionTools } = require("./tools");
 
 const app = express();
 app.use(cors());
@@ -315,23 +316,27 @@ async function handleXiaozhiMessage(ws, raw, deviceName) {
       result = {
         protocolVersion: "2024-11-05",
         capabilities:    { tools: { listChanged: false } },
-        serverInfo:      { name: "vn-music-mcp", version: "2.0.0" }
+        serverInfo:      { name: "vn-music-mcp", version: "3.0.0" }
       };
 
     } else if (method === "tools/list") {
-      result = { tools: MCP_TOOLS };
+      // Merge music tools + 80+ bonion tools
+      const bonionTools = await getAllBonionMCPTools();
+      result = { tools: [...MCP_TOOLS, ...bonionTools] };
 
     } else if (method === "tools/call") {
       const { name, arguments: args } = params;
       let toolResult;
 
+      // Music tools (local handlers)
       if      (name === "search_music")   toolResult = await handleSearchMusic(args);
       else if (name === "play_music")     toolResult = await handlePlayMusic(args);
       else if (name === "get_stream_url") toolResult = await handleGetStreamUrl(args);
       else if (name === "get_song_info")  toolResult = await handleGetSongInfo(args);
       else if (name === "get_lyrics")     toolResult = await handleGetLyrics(args);
       else if (name === "get_top_charts") toolResult = await handleGetTopCharts(args);
-      else toolResult = { error: `Tool không tồn tại: ${name}` };
+      // Bonion tools (fallback to bonion handler)
+      else toolResult = await handleBonionToolCall(name, args);
 
       result = { content: [{ type: "text", text: JSON.stringify(toolResult, null, 2) }] };
 
@@ -454,10 +459,23 @@ app.get("/api/devices", (req, res) => {
   res.json({ devices: list });
 });
 
-app.get("/api", (req, res) => {
-  res.json({ name: "VN Music MCP", version: "2.0.0",
+app.get("/api", async (req, res) => {
+  const bonionTools = await getAllBonionMCPTools();
+  const allTools = [...MCP_TOOLS, ...bonionTools];
+  res.json({ name: "VN Music MCP", version: "3.0.0",
              connectedDevices: connectedDevices.size,
-             tools: MCP_TOOLS.map(t => ({ name: t.name, description: t.description })) });
+             totalTools: allTools.length,
+             musicTools: MCP_TOOLS.length,
+             bonionTools: bonionTools.length,
+             tools: allTools.map(t => ({ name: t.name, description: t.description })) });
+});
+
+// REST API: Danh sách tools
+app.get("/api/tools", async (req, res) => {
+  const bonionTools = await getAllBonionMCPTools();
+  res.json({ total: MCP_TOOLS.length + bonionTools.length,
+             music: MCP_TOOLS,
+             bonion: bonionTools });
 });
 
 app.get("/search", async (req, res) => {
@@ -499,26 +517,25 @@ app.get("/health", (req, res) => {
 
 // ─── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log("========================================");
-  console.log(" 🎵 VN Music MCP Server v2.0");
+  console.log(" 🎵 VN Music MCP Server v3.0");
   console.log(`    http://localhost:${PORT}`);
   console.log("========================================");
-  console.log(" MCP Tools:");
-  console.log(`   search_music  - Tìm kiếm bài hát`);
-  console.log(`   play_music    - Phát nhạc`);
-  console.log(`   get_stream_url- Lấy link stream`);
-  console.log(`   get_song_info - Thông tin bài hát`);
-  console.log(`   get_lyrics    - Lời bài hát`);
-  console.log(`   get_top_charts- Bài hát hot`);
+  console.log(" 🎶 Music Tools (6):");
+  console.log(`   search_music / play_music / get_stream_url`);
+  console.log(`   get_song_info / get_lyrics / get_top_charts`);
+  console.log("----------------------------------------");
+
+  // Pre-load bonion tools
+  const bonionTools = await getAllBonionMCPTools();
+  console.log(` 🧠 Bonion AI Tools: ${bonionTools.length}`);
+  console.log(` 📊 Tổng cộng: ${6 + bonionTools.length} tools`);
   console.log("----------------------------------------");
   console.log(" REST API:");
-  console.log(`   POST /api/connect`);
-  console.log(`   GET  /api/devices`);
-  console.log(`   GET  /search?q=xxx`);
-  console.log(`   GET  /play?id=xxx`);
-  console.log(`   GET  /stream?id=xxx`);
-  console.log(`   GET  /info?id=xxx`);
-  console.log(`   GET  /lyrics?id=xxx`);
+  console.log(`   POST /api/connect   GET /api/devices`);
+  console.log(`   GET  /api/tools     GET /search?q=xxx`);
+  console.log(`   GET  /play?id=xxx   GET /stream?id=xxx`);
+  console.log(`   GET  /info?id=xxx   GET /lyrics?id=xxx`);
   console.log("========================================");
 });
