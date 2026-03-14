@@ -98,6 +98,29 @@
     .no-devices{text-align:center;padding:2rem;color:var(--muted);font-size:.85rem}
     .no-devices span{display:block;font-size:2rem;margin-bottom:.5rem;opacity:.4}
 
+    /* Saved devices */
+    .saved-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.15rem .55rem;border-radius:6px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+    .saved-badge.auto-on{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)}
+    .saved-badge.auto-off{background:rgba(245,158,11,.1);color:var(--yellow);border:1px solid rgba(245,158,11,.2)}
+    .saved-badge.online{background:rgba(6,182,212,.1);color:var(--accent2);border:1px solid rgba(6,182,212,.25)}
+
+    .saved-actions{display:flex;gap:.4rem;flex-shrink:0;flex-wrap:wrap}
+    .btn-sm{padding:.32rem .6rem;border-radius:7px;cursor:pointer;font-size:.72rem;font-weight:600;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:.3rem}
+    .btn-reconnect{background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);color:#a78bfa}
+    .btn-reconnect:hover{background:rgba(124,58,237,.25)}
+    .btn-auto{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.22);color:var(--green)}
+    .btn-auto:hover{background:rgba(16,185,129,.2)}
+    .btn-auto.off{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:var(--yellow)}
+    .btn-auto.off:hover{background:rgba(245,158,11,.15)}
+    .btn-remove{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:var(--red)}
+    .btn-remove:hover{background:rgba(239,68,68,.18)}
+
+    .saved-device-item{display:flex;align-items:center;gap:.8rem;padding:.8rem .9rem;background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:12px;margin-bottom:.6rem;transition:all .25s}
+    .saved-device-item:hover{border-color:rgba(124,58,237,.3);background:rgba(124,58,237,.04)}
+    .saved-device-item .device-icon{background:linear-gradient(135deg,rgba(124,58,237,.25),rgba(16,185,129,.15))}
+    .saved-device-meta{display:flex;gap:.4rem;margin-top:.3rem;flex-wrap:wrap}
+    .saved-time{font-size:.68rem;color:var(--muted);margin-top:.2rem}
+
     /* Tools */
     .tools-row{display:grid;grid-template-columns:repeat(2,1fr);gap:.8rem;margin-bottom:1.2rem}
     @media(max-width:580px){.tools-row{grid-template-columns:1fr}}
@@ -161,11 +184,25 @@
   <!-- Connected devices -->
   <div class="devices-card">
     <div class="devices-header">
-      <div class="device-count">Thiết Bị Đã Kết Nối <span id="device-count">0</span></div>
+      <div class="device-count">Thiết Bị Đang Kết Nối <span id="device-count">0</span></div>
       <button class="refresh-btn" onclick="loadDevices()">↻ Làm mới</button>
     </div>
     <div id="devices-list">
       <div class="no-devices"><span>📡</span>Chưa có thiết bị nào kết nối</div>
+    </div>
+  </div>
+
+  <!-- Saved Devices -->
+  <div class="devices-card">
+    <div class="devices-header">
+      <div class="device-count">💾 THIẾT BỊ ĐÃ LƯU <span id="saved-count">0</span></div>
+      <div style="display:flex;gap:.4rem">
+        <button class="refresh-btn" onclick="loadSavedDevices()">↻ Làm mới</button>
+        <button class="refresh-btn" onclick="reconnectAll()" title="Kết nối lại tất cả">🔄 Kết nối lại</button>
+      </div>
+    </div>
+    <div id="saved-devices-list">
+      <div class="no-devices"><span>💾</span>Chưa lưu thiết bị nào</div>
     </div>
   </div>
 
@@ -205,7 +242,9 @@
 
   // Load devices on start
   loadDevices();
+  loadSavedDevices();
   setInterval(loadDevices, 8000);
+  setInterval(loadSavedDevices, 15000);
 
   async function doConnect() {
     const name = document.getElementById('inp-name').value.trim();
@@ -228,11 +267,12 @@
       const d = await r.json();
 
       if (d.success) {
-        showMsg(d.message, 'ok');
+        showMsg(d.message + (d.saved ? ' 💾 Đã lưu' : ''), 'ok');
         toast('✅ ' + d.message, 'ok');
         document.getElementById('inp-name').value = '';
         document.getElementById('inp-wss').value = '';
         loadDevices();
+        loadSavedDevices();
       } else {
         showMsg('❌ ' + (d.error || 'Kết nối thất bại'), 'err');
         toast('❌ ' + (d.error || 'Thất bại'), 'err');
@@ -253,6 +293,7 @@
       });
       toast(`🔌 Đã ngắt kết nối "${name}"`, 'ok');
       loadDevices();
+      loadSavedDevices();
     } catch(e) {
       toast('Lỗi: ' + e.message, 'err');
     }
@@ -292,9 +333,123 @@
             <div class="status-dot"></div>
             <span class="status-txt">${stxt}</span>
           </div>
-          <button class="btn-delete" onclick="disconnectDevice('${esc(d.name)}')">✕ Xóa</button>
+          <button class="btn-delete" onclick="disconnectDevice('${esc(d.name)}')">✕ Ngắt</button>
         </div>`;
     }).join('');
+  }
+
+  // ─── Saved Devices ────────────────────────────────
+  async function loadSavedDevices() {
+    try {
+      const r = await fetch(`${API}/api/saved-devices`);
+      const d = await r.json();
+      renderSavedDevices(d.savedDevices || []);
+    } catch {}
+  }
+
+  function renderSavedDevices(devices) {
+    const cnt = document.getElementById('saved-count');
+    const list = document.getElementById('saved-devices-list');
+    cnt.textContent = devices.length;
+
+    if (devices.length === 0) {
+      list.innerHTML = `<div class="no-devices"><span>💾</span>Chưa lưu thiết bị nào</div>`;
+      return;
+    }
+
+    list.innerHTML = devices.map(d => {
+      const shortUrl = d.wssUrl.replace('wss://api.xiaozhi.me/mcp/', 'wss://...xiaozhi...').substring(0, 50) + '...';
+      const savedTime = d.savedAt ? new Date(d.savedAt).toLocaleString('vi-VN') : '';
+      const autoClass = d.autoConnect !== false ? 'auto-on' : 'auto-off';
+      const autoText  = d.autoConnect !== false ? '🟢 Auto' : '⏸️ Manual';
+      const onlineBadge = d.isConnected ? '<span class="saved-badge online">⚡ Online</span>' : '';
+
+      return `
+        <div class="saved-device-item">
+          <div class="device-icon">💾</div>
+          <div class="device-info" style="flex:1;min-width:0">
+            <div class="device-name">${esc(d.deviceName)}</div>
+            <div class="device-url">${esc(shortUrl)}</div>
+            <div class="saved-device-meta">
+              <span class="saved-badge ${autoClass}">${autoText}</span>
+              ${onlineBadge}
+            </div>
+            <div class="saved-time">Lưu lúc: ${savedTime}</div>
+          </div>
+          <div class="saved-actions">
+            ${!d.isConnected ? `<button class="btn-sm btn-reconnect" onclick="reconnectSaved('${esc(d.deviceName)}')">🔌 Kết nối</button>` : ''}
+            <button class="btn-sm btn-auto ${d.autoConnect !== false ? '' : 'off'}" onclick="toggleAutoConnect('${esc(d.deviceName)}', ${d.autoConnect === false})">
+              ${d.autoConnect !== false ? '⏸️' : '▶️'}
+            </button>
+            <button class="btn-sm btn-remove" onclick="removeSavedDevice('${esc(d.deviceName)}')">🗑️</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  async function reconnectSaved(name) {
+    toast(`🔄 Đang kết nối lại "${name}"...`, 'ok');
+    try {
+      // Lấy wssUrl gốc (không masked) thông qua server
+      const r = await fetch(`${API}/api/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceName: name, wssUrl: 'reconnect', reconnect: true })
+      });
+      const d = await r.json();
+      if (d.success) {
+        toast(`✅ ${d.message}`, 'ok');
+      } else {
+        toast(`❌ ${d.error || 'Thất bại'}`, 'err');
+      }
+      loadDevices();
+      loadSavedDevices();
+    } catch(e) {
+      toast('Lỗi: ' + e.message, 'err');
+    }
+  }
+
+  async function reconnectAll() {
+    toast('🔄 Đang kết nối lại tất cả thiết bị...', 'ok');
+    try {
+      const r = await fetch(`${API}/api/reconnect-all`, { method: 'POST' });
+      const d = await r.json();
+      toast(d.message || 'Hoàn tất', d.success ? 'ok' : 'err');
+      setTimeout(() => { loadDevices(); loadSavedDevices(); }, 2000);
+    } catch(e) {
+      toast('Lỗi: ' + e.message, 'err');
+    }
+  }
+
+  async function toggleAutoConnect(name, newValue) {
+    try {
+      const r = await fetch(`${API}/api/toggle-auto-connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceName: name, autoConnect: newValue })
+      });
+      const d = await r.json();
+      toast(d.message, d.success ? 'ok' : 'err');
+      loadSavedDevices();
+    } catch(e) {
+      toast('Lỗi: ' + e.message, 'err');
+    }
+  }
+
+  async function removeSavedDevice(name) {
+    if (!confirm(`Xóa "${name}" khỏi danh sách đã lưu?`)) return;
+    try {
+      const r = await fetch(`${API}/api/remove-saved-device`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceName: name })
+      });
+      const d = await r.json();
+      toast(d.message, d.success ? 'ok' : 'err');
+      loadSavedDevices();
+    } catch(e) {
+      toast('Lỗi: ' + e.message, 'err');
+    }
   }
 
   function setLoading(on) {

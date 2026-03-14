@@ -8,6 +8,7 @@ const express = require("express");
 const fetch   = require("node-fetch");
 const cors    = require("cors");
 const path    = require("path");
+const fs      = require("fs");
 const WebSocket = require("ws");
 const { v4: uuidv4 } = require("uuid");
 const { getAllBonionMCPTools, handleBonionToolCall, fetchBonionTools } = require("./tools");
@@ -21,6 +22,81 @@ const BASE = "https://mp3.mrhung.io.vn";
 
 // ─── Lưu thiết bị đang kết nối ────────────────────────────────────────────────
 const connectedDevices = new Map();
+
+// ─── Persistent device storage ─────────────────────────────────────────────────
+const DEVICES_FILE = path.join(__dirname, "devices.json");
+
+/**
+ * Đọc danh sách thiết bị đã lưu từ file
+ */
+function loadSavedDevices() {
+  try {
+    if (fs.existsSync(DEVICES_FILE)) {
+      const data = fs.readFileSync(DEVICES_FILE, "utf-8");
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.error(`[storage] ❌ Lỗi đọc devices.json: ${e.message}`);
+  }
+  return [];
+}
+
+/**
+ * Lưu danh sách thiết bị ra file
+ */
+function saveDevicesToFile(devices) {
+  try {
+    fs.writeFileSync(DEVICES_FILE, JSON.stringify(devices, null, 2), "utf-8");
+    console.log(`[storage] 💾 Đã lưu ${devices.length} thiết bị vào devices.json`);
+  } catch (e) {
+    console.error(`[storage] ❌ Lỗi ghi devices.json: ${e.message}`);
+  }
+}
+
+/**
+ * Thêm/cập nhật thiết bị vào danh sách lưu
+ */
+function addSavedDevice(deviceName, wssUrl) {
+  const devices = loadSavedDevices();
+  const idx = devices.findIndex(d => d.deviceName === deviceName);
+  const entry = {
+    deviceName,
+    wssUrl,
+    savedAt: new Date().toISOString(),
+    autoConnect: true
+  };
+  if (idx >= 0) {
+    devices[idx] = { ...devices[idx], ...entry };
+  } else {
+    devices.push(entry);
+  }
+  saveDevicesToFile(devices);
+}
+
+/**
+ * Xóa thiết bị khỏi danh sách lưu
+ */
+function removeSavedDevice(deviceName) {
+  const devices = loadSavedDevices();
+  const filtered = devices.filter(d => d.deviceName !== deviceName);
+  saveDevicesToFile(filtered);
+  return filtered.length < devices.length;
+}
+
+/**
+ * Cập nhật trạng thái autoConnect
+ */
+function updateAutoConnect(deviceName, autoConnect) {
+  const devices = loadSavedDevices();
+  const dev = devices.find(d => d.deviceName === deviceName);
+  if (dev) {
+    dev.autoConnect = autoConnect;
+    saveDevicesToFile(devices);
+    return true;
+  }
+  return false;
+}
 
 // ─── MCP Tool definitions ──────────────────────────────────────────────────────
 const MCP_TOOLS = [
@@ -422,18 +498,47 @@ function connectToXiaozhi(deviceName, wssUrl) {
 
 // ─── REST API ─────────────────────────────────────────────────────────────────
 app.post("/api/connect", (req, res) => {
-  const { deviceName, wssUrl } = req.body;
+  const { deviceName, wssUrl, saveDevice, reconnect } = req.body;
+
+  // Reconnect mode: lấy wssUrl từ saved devices
+  if (reconnect && deviceName) {
+    const saved = loadSavedDevices();
+    const dev = saved.find(d => d.deviceName === deviceName);
+    if (!dev) return res.status(404).json({ error: `Không tìm thấy thiết bị "${deviceName}" trong danh sách lưu` });
+
+    try {
+      const ws = connectToXiaozhi(deviceName, dev.wssUrl);
+      const timeout = setTimeout(() => {
+        if (!res.headersSent) res.status(504).json({ error: "Timeout kết nối sau 8s" });
+      }, 8000);
+      ws.once("open", () => { clearTimeout(timeout); if (!res.headersSent) res.json({ success: true, message: `✅ Đã kết nối lại "${deviceName}"!` }); });
+      ws.once("error", (err) => { clearTimeout(timeout); if (!res.headersSent) res.status(500).json({ error: err.message }); });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+    return;
+  }
+
   if (!deviceName || !wssUrl)
     return res.status(400).json({ error: "Thiếu deviceName hoặc wssUrl" });
   if (!wssUrl.startsWith("wss://"))
     return res.status(400).json({ error: "wssUrl phải bắt đầu bằng wss://" });
 
   try {
-    const ws = connectToXiaozhi(deviceName.trim(), wssUrl.trim());
+    const trimName = deviceName.trim();
+    const trimUrl  = wssUrl.trim();
+    const ws = connectToXiaozhi(trimName, trimUrl);
     const timeout = setTimeout(() => {
       if (!res.headersSent) res.status(504).json({ error: "Timeout kết nối Xiaozhi sau 8s" });
     }, 8000);
-    ws.once("open",  () => { clearTimeout(timeout); if (!res.headersSent) res.json({ success: true, message: `✅ Đã kết nối "${deviceName}"!` }); });
+    ws.once("open",  () => {
+      clearTimeout(timeout);
+      // Tự động lưu thiết bị khi kết nối thành công (mặc định saveDevice = true)
+      if (saveDevice !== false) {
+        addSavedDevice(trimName, trimUrl);
+      }
+      if (!res.headersSent) res.json({ success: true, message: `✅ Đã kết nối "${trimName}"!`, saved: saveDevice !== false });
+    });
     ws.once("error", (err) => { clearTimeout(timeout); if (!res.headersSent) res.status(500).json({ error: err.message }); });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -441,13 +546,17 @@ app.post("/api/connect", (req, res) => {
 });
 
 app.post("/api/disconnect", (req, res) => {
-  const { deviceName } = req.body;
+  const { deviceName, removeFromSaved } = req.body;
   const dev = connectedDevices.get(deviceName);
   if (!dev) return res.json({ message: "Thiết bị không tồn tại" });
   if (dev.reconnectTimer) clearTimeout(dev.reconnectTimer);
   if (dev.ws)             dev.ws.close();
   connectedDevices.delete(deviceName);
-  res.json({ success: true, message: `Đã ngắt kết nối "${deviceName}"` });
+  // Nếu yêu cầu xóa khỏi danh sách lưu
+  if (removeFromSaved) {
+    removeSavedDevice(deviceName);
+  }
+  res.json({ success: true, message: `Đã ngắt kết nối "${deviceName}"`, removedFromSaved: !!removeFromSaved });
 });
 
 app.get("/api/devices", (req, res) => {
@@ -457,6 +566,86 @@ app.get("/api/devices", (req, res) => {
                 url: dev.url.replace(/token=.{10,}/, "token=***") });
   });
   res.json({ devices: list });
+});
+
+// ─── Saved Devices API ────────────────────────────────────────────────────────
+app.get("/api/saved-devices", (req, res) => {
+  const saved = loadSavedDevices().map(d => ({
+    ...d,
+    wssUrl: d.wssUrl.replace(/token=.{10,}/, "token=***"),
+    isConnected: connectedDevices.has(d.deviceName) && connectedDevices.get(d.deviceName).status === "connected"
+  }));
+  res.json({ savedDevices: saved, total: saved.length });
+});
+
+app.post("/api/save-device", (req, res) => {
+  const { deviceName, wssUrl } = req.body;
+  if (!deviceName || !wssUrl)
+    return res.status(400).json({ error: "Thiếu deviceName hoặc wssUrl" });
+  addSavedDevice(deviceName.trim(), wssUrl.trim());
+  res.json({ success: true, message: `💾 Đã lưu thiết bị "${deviceName}"` });
+});
+
+app.post("/api/remove-saved-device", (req, res) => {
+  const { deviceName } = req.body;
+  if (!deviceName)
+    return res.status(400).json({ error: "Thiếu deviceName" });
+  const removed = removeSavedDevice(deviceName);
+  if (removed) {
+    res.json({ success: true, message: `🗑️ Đã xóa "${deviceName}" khỏi danh sách lưu` });
+  } else {
+    res.json({ success: false, message: `Không tìm thấy "${deviceName}" trong danh sách lưu` });
+  }
+});
+
+app.post("/api/toggle-auto-connect", (req, res) => {
+  const { deviceName, autoConnect } = req.body;
+  if (!deviceName)
+    return res.status(400).json({ error: "Thiếu deviceName" });
+  const updated = updateAutoConnect(deviceName, autoConnect);
+  if (updated) {
+    res.json({ success: true, message: `${autoConnect ? '✅' : '⏸️'} AutoConnect ${autoConnect ? 'bật' : 'tắt'} cho "${deviceName}"` });
+  } else {
+    res.json({ success: false, message: `Không tìm thấy "${deviceName}" trong danh sách lưu` });
+  }
+});
+
+app.post("/api/reconnect-all", async (req, res) => {
+  const saved = loadSavedDevices();
+  const toConnect = saved.filter(d => d.autoConnect !== false);
+
+  if (toConnect.length === 0) {
+    return res.json({ success: false, message: "Không có thiết bị nào để kết nối lại" });
+  }
+
+  let connected = 0;
+  let failed = 0;
+
+  for (const dev of toConnect) {
+    try {
+      // Bỏ qua nếu đã kết nối
+      const existing = connectedDevices.get(dev.deviceName);
+      if (existing && existing.status === "connected") {
+        connected++;
+        continue;
+      }
+      connectToXiaozhi(dev.deviceName, dev.wssUrl);
+      connected++;
+      // Delay giữa các kết nối
+      await new Promise(r => setTimeout(r, 1000));
+    } catch (e) {
+      console.error(`[reconnect-all] ❌ ${dev.deviceName}: ${e.message}`);
+      failed++;
+    }
+  }
+
+  res.json({
+    success: true,
+    message: `🔄 Đã gửi kết nối lại ${connected}/${toConnect.length} thiết bị${failed ? ` (${failed} lỗi)` : ''}`,
+    connected,
+    failed,
+    total: toConnect.length
+  });
 });
 
 app.get("/api", async (req, res) => {
@@ -533,9 +722,34 @@ app.listen(PORT, async () => {
   console.log(` 📊 Tổng cộng: ${6 + bonionTools.length} tools`);
   console.log("----------------------------------------");
   console.log(" REST API:");
-  console.log(`   POST /api/connect   GET /api/devices`);
-  console.log(`   GET  /api/tools     GET /search?q=xxx`);
-  console.log(`   GET  /play?id=xxx   GET /stream?id=xxx`);
-  console.log(`   GET  /info?id=xxx   GET /lyrics?id=xxx`);
+  console.log(`   POST /api/connect        GET /api/devices`);
+  console.log(`   GET  /api/saved-devices  POST /api/save-device`);
+  console.log(`   POST /api/remove-saved-device`);
+  console.log(`   GET  /api/tools          GET /search?q=xxx`);
+  console.log(`   GET  /play?id=xxx        GET /stream?id=xxx`);
+  console.log(`   GET  /info?id=xxx        GET /lyrics?id=xxx`);
   console.log("========================================");
+
+  // ─── Auto-reconnect saved devices ────────────────────────────────────────────
+  const savedDevices = loadSavedDevices();
+  if (savedDevices.length > 0) {
+    console.log(`\n[storage] 📂 Tìm thấy ${savedDevices.length} thiết bị đã lưu`);
+    for (const dev of savedDevices) {
+      if (dev.autoConnect !== false) {
+        console.log(`[storage] 🔄 Tự động kết nối: ${dev.deviceName}`);
+        try {
+          connectToXiaozhi(dev.deviceName, dev.wssUrl);
+        } catch (e) {
+          console.error(`[storage] ❌ Lỗi kết nối ${dev.deviceName}: ${e.message}`);
+        }
+        // Delay giữa các kết nối để tránh overload
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        console.log(`[storage] ⏸️ Bỏ qua (autoConnect tắt): ${dev.deviceName}`);
+      }
+    }
+    console.log(`[storage] ✅ Hoàn tất auto-reconnect\n`);
+  } else {
+    console.log(`\n[storage] 📂 Chưa có thiết bị nào được lưu`);
+  }
 });
