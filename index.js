@@ -1,6 +1,7 @@
 /**
- * MCP VN Music Server v1.2
+ * MCP VN Music Server v2.0
  * Server kết nối WebSocket CLIENT tới Xiaozhi.me
+ * Features: Search, Play, Stream URL, Song Info, Lyrics, Top Charts
  */
 
 const express = require("express");
@@ -53,6 +54,48 @@ const MCP_TOOLS = [
         },
         title:  { type: "string", description: "Tên bài hát" },
         artist: { type: "string", description: "Tên ca sĩ" }
+      },
+      required: ["encodeId"]
+    }
+  },
+  {
+    name: "get_stream_url",
+    description: "Lấy link stream trực tiếp (direct MP3 URL) để phát nhạc. Trả về URL có thể dùng trực tiếp trong trình phát nhạc.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        encodeId: {
+          type: "string",
+          description: "Mã bài hát encodeId từ kết quả search_music"
+        }
+      },
+      required: ["encodeId"]
+    }
+  },
+  {
+    name: "get_song_info",
+    description: "Lấy thông tin chi tiết bài hát: tên, ca sĩ, album, thể loại, nhạc sĩ sáng tác, thời lượng, ảnh bìa, lượt thích, v.v.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        encodeId: {
+          type: "string",
+          description: "Mã bài hát encodeId từ kết quả search_music"
+        }
+      },
+      required: ["encodeId"]
+    }
+  },
+  {
+    name: "get_lyrics",
+    description: "Lấy lời bài hát (lyrics) bao gồm cả lời có đồng bộ thời gian (synced lyrics) và lời plain text.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        encodeId: {
+          type: "string",
+          description: "Mã bài hát encodeId từ kết quả search_music"
+        }
       },
       required: ["encodeId"]
     }
@@ -116,6 +159,121 @@ async function handlePlayMusic({ encodeId, title, artist }) {
   };
 }
 
+async function handleGetStreamUrl({ encodeId }) {
+  const streamUrl = await getDirectStreamUrl(encodeId);
+  const proxyUrl  = `${BASE}/api/song/stream?id=${encodeId}`;
+
+  console.log(`[get_stream_url] 🔗 ${encodeId} → ${streamUrl}`);
+
+  return {
+    encodeId,
+    streamUrl,
+    proxyUrl,
+    message: `🔗 Link stream cho ${encodeId}:\n- Direct: ${streamUrl}\n- Proxy: ${proxyUrl}`
+  };
+}
+
+async function handleGetSongInfo({ encodeId }) {
+  const r = await fetch(`${BASE}/api/info-song?id=${encodeId}`);
+  const data = await r.json();
+
+  if (data.err !== 0 || !data.data) {
+    return { error: `Không tìm thấy thông tin bài hát: ${encodeId}`, encodeId };
+  }
+
+  const s = data.data;
+  const info = {
+    encodeId:    s.encodeId,
+    title:       s.title,
+    artist:      s.artistsNames,
+    artists:     (s.artists || []).map(a => ({ name: a.name, id: a.id, thumbnail: a.thumbnail, followers: a.totalFollow })),
+    album:       s.album ? { title: s.album.title, releaseDate: s.album.releaseDate } : null,
+    genres:      (s.genres || []).map(g => g.name),
+    composers:   (s.composers || []).map(c => c.name),
+    duration:    formatDur(s.duration),
+    durationSec: s.duration,
+    thumbnail:   s.thumbnailM || s.thumbnail || "",
+    releaseDate: s.releaseDate ? new Date(s.releaseDate * 1000).toLocaleDateString("vi-VN") : "",
+    hasLyric:    s.hasLyric || false,
+    like:        s.like || 0,
+    comment:     s.comment || 0,
+    streamUrl:   `${BASE}/api/song/stream?id=${s.encodeId}`
+  };
+
+  console.log(`[get_song_info] ℹ️ ${info.title} - ${info.artist}`);
+
+  return {
+    ...info,
+    message: `ℹ️ ${info.title} - ${info.artist}\n🎵 Album: ${info.album?.title || 'N/A'}\n🎹 Thể loại: ${info.genres.join(', ')}\n✍️ Sáng tác: ${info.composers.join(', ')}\n⏱️ Thời lượng: ${info.duration}\n❤️ ${info.like.toLocaleString()} lượt thích`
+  };
+}
+
+async function handleGetLyrics({ encodeId }) {
+  const r = await fetch(`${BASE}/api/lyric?id=${encodeId}`);
+  const data = await r.json();
+
+  if (data.err !== 0 || !data.data) {
+    return { error: `Không tìm thấy lời bài hát: ${encodeId}`, encodeId, hasLyric: false };
+  }
+
+  const lrcUrl = data.data.file || "";
+  let plainText = "";
+  let syncedLyrics = [];
+
+  // Tải và parse file .lrc nếu có
+  if (lrcUrl) {
+    try {
+      const lrcResp = await fetch(lrcUrl);
+      const lrcContent = await lrcResp.text();
+
+      // Parse LRC format
+      const lines = lrcContent.split(/\r?\n/);
+      const textLines = [];
+
+      for (const line of lines) {
+        const match = line.match(/^\[(\d{2}):(\d{2}\.\d{2})\](.*)$/);
+        if (match) {
+          const minutes = parseInt(match[1]);
+          const seconds = parseFloat(match[2]);
+          const text = match[3].trim();
+          if (text) {
+            syncedLyrics.push({
+              time: `${match[1]}:${match[2]}`,
+              timeSec: minutes * 60 + seconds,
+              text
+            });
+            textLines.push(text);
+          }
+        } else if (line.startsWith("[") && line.includes("]")) {
+          // Metadata lines like [ar:], [ti:], etc.
+          const metaMatch = line.match(/^\[([a-z]+):\s*(.+)\]$/i);
+          if (metaMatch) {
+            // Skip metadata in plain text
+          }
+        }
+      }
+
+      plainText = textLines.join("\n");
+    } catch (e) {
+      console.error(`[get_lyrics] Lỗi tải LRC: ${e.message}`);
+    }
+  }
+
+  console.log(`[get_lyrics] 📝 ${encodeId} - ${syncedLyrics.length} dòng`);
+
+  return {
+    encodeId,
+    hasLyric: true,
+    lrcUrl,
+    plainText,
+    syncedLyrics,
+    totalLines: syncedLyrics.length,
+    message: plainText
+      ? `📝 Lời bài hát (${syncedLyrics.length} dòng):\n\n${plainText}`
+      : `Không có lời bài hát cho ${encodeId}`
+  };
+}
+
 async function handleGetTopCharts({ limit = 10 }) {
   const r = await fetch(`${BASE}/api/search?q=nhạc+hot+2024`);
   const data = await r.json();
@@ -157,7 +315,7 @@ async function handleXiaozhiMessage(ws, raw, deviceName) {
       result = {
         protocolVersion: "2024-11-05",
         capabilities:    { tools: { listChanged: false } },
-        serverInfo:      { name: "vn-music-mcp", version: "1.2.0" }
+        serverInfo:      { name: "vn-music-mcp", version: "2.0.0" }
       };
 
     } else if (method === "tools/list") {
@@ -167,8 +325,11 @@ async function handleXiaozhiMessage(ws, raw, deviceName) {
       const { name, arguments: args } = params;
       let toolResult;
 
-      if      (name === "search_music")  toolResult = await handleSearchMusic(args);
-      else if (name === "play_music")    toolResult = await handlePlayMusic(args);
+      if      (name === "search_music")   toolResult = await handleSearchMusic(args);
+      else if (name === "play_music")     toolResult = await handlePlayMusic(args);
+      else if (name === "get_stream_url") toolResult = await handleGetStreamUrl(args);
+      else if (name === "get_song_info")  toolResult = await handleGetSongInfo(args);
+      else if (name === "get_lyrics")     toolResult = await handleGetLyrics(args);
       else if (name === "get_top_charts") toolResult = await handleGetTopCharts(args);
       else toolResult = { error: `Tool không tồn tại: ${name}` };
 
@@ -294,9 +455,9 @@ app.get("/api/devices", (req, res) => {
 });
 
 app.get("/api", (req, res) => {
-  res.json({ name: "VN Music MCP", version: "1.2.0",
+  res.json({ name: "VN Music MCP", version: "2.0.0",
              connectedDevices: connectedDevices.size,
-             tools: MCP_TOOLS.map(t => ({ name: t.name })) });
+             tools: MCP_TOOLS.map(t => ({ name: t.name, description: t.description })) });
 });
 
 app.get("/search", async (req, res) => {
@@ -311,6 +472,27 @@ app.get("/play", async (req, res) => {
   res.redirect(await getDirectStreamUrl(id));
 });
 
+// REST API: Lấy link stream trực tiếp
+app.get("/stream", async (req, res) => {
+  const id = req.query.id;
+  if (!id) return res.json({ error: "Thiếu ?id=" });
+  res.json(await handleGetStreamUrl({ encodeId: id }));
+});
+
+// REST API: Lấy thông tin bài hát
+app.get("/info", async (req, res) => {
+  const id = req.query.id;
+  if (!id) return res.json({ error: "Thiếu ?id=" });
+  res.json(await handleGetSongInfo({ encodeId: id }));
+});
+
+// REST API: Lấy lời bài hát
+app.get("/lyrics", async (req, res) => {
+  const id = req.query.id;
+  if (!id) return res.json({ error: "Thiếu ?id=" });
+  res.json(await handleGetLyrics({ encodeId: id }));
+});
+
 app.get("/health", (req, res) => {
   res.json({ status: "ok", devices: connectedDevices.size, uptime: Math.floor(process.uptime()) + "s" });
 });
@@ -318,13 +500,25 @@ app.get("/health", (req, res) => {
 // ─── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("===================================");
-  console.log(" 🎵 VN Music MCP Server v1.2");
+  console.log("========================================");
+  console.log(" 🎵 VN Music MCP Server v2.0");
   console.log(`    http://localhost:${PORT}`);
-  console.log("===================================");
-  console.log(` Connect: POST /api/connect`);
-  console.log(` Devices: GET  /api/devices`);
-  console.log(` Search:  GET  /search?q=xxx`);
-  console.log(` Play:    GET  /play?id=xxx`);
-  console.log("===================================");
+  console.log("========================================");
+  console.log(" MCP Tools:");
+  console.log(`   search_music  - Tìm kiếm bài hát`);
+  console.log(`   play_music    - Phát nhạc`);
+  console.log(`   get_stream_url- Lấy link stream`);
+  console.log(`   get_song_info - Thông tin bài hát`);
+  console.log(`   get_lyrics    - Lời bài hát`);
+  console.log(`   get_top_charts- Bài hát hot`);
+  console.log("----------------------------------------");
+  console.log(" REST API:");
+  console.log(`   POST /api/connect`);
+  console.log(`   GET  /api/devices`);
+  console.log(`   GET  /search?q=xxx`);
+  console.log(`   GET  /play?id=xxx`);
+  console.log(`   GET  /stream?id=xxx`);
+  console.log(`   GET  /info?id=xxx`);
+  console.log(`   GET  /lyrics?id=xxx`);
+  console.log("========================================");
 });

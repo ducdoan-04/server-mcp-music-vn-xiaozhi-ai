@@ -99,7 +99,7 @@
     .no-devices span{display:block;font-size:2rem;margin-bottom:.5rem;opacity:.4}
 
     /* Tools */
-    .tools-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-bottom:1.2rem}
+    .tools-row{display:grid;grid-template-columns:repeat(2,1fr);gap:.8rem;margin-bottom:1.2rem}
     @media(max-width:580px){.tools-row{grid-template-columns:1fr}}
     .tool-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem;transition:all .3s}
     .tool-card:hover{border-color:rgba(124,58,237,.4);transform:translateY(-3px);box-shadow:0 10px 28px rgba(124,58,237,.1)}
@@ -179,7 +179,22 @@
     <div class="tool-card">
       <div class="tool-icon">▶️</div>
       <div class="tool-name">play_music</div>
-      <div class="tool-desc">Lấy link stream MP3 để Xiaozhi phát nhạc qua loa trực tiếp.</div>
+      <div class="tool-desc">Phát nhạc: lấy link stream MP3 để Xiaozhi phát qua loa trực tiếp.</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon">🔗</div>
+      <div class="tool-name">get_stream_url</div>
+      <div class="tool-desc">Lấy link stream trực tiếp (direct MP3 URL) để dùng trong trình phát nhạc.</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon">ℹ️</div>
+      <div class="tool-name">get_song_info</div>
+      <div class="tool-desc">Thông tin chi tiết: ca sĩ, album, thể loại, sáng tác, lượt thích, ảnh bìa.</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-icon">📝</div>
+      <div class="tool-name">get_lyrics</div>
+      <div class="tool-desc">Lời bài hát có đồng bộ thời gian (synced lyrics) và lời plain text.</div>
     </div>
     <div class="tool-card">
       <div class="tool-icon">🔥</div>
