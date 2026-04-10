@@ -397,8 +397,13 @@ async function handleXiaozhiMessage(ws, raw, deviceName) {
 
     } else if (method === "tools/list") {
       // Merge music tools + 80+ bonion tools
+      // OPTIMIZED: Loại bỏ inputSchema để giảm kích thước response (fix code 1009)
       const bonionTools = await getAllBonionMCPTools();
-      result = { tools: [...MCP_TOOLS, ...bonionTools] };
+      const toolsList = [...MCP_TOOLS, ...bonionTools].map(t => ({
+        name: t.name,
+        description: t.description
+      }));
+      result = { tools: toolsList };
 
     } else if (method === "tools/call") {
       const { name, arguments: args } = params;
