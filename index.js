@@ -11,7 +11,7 @@ const path    = require("path");
 const fs      = require("fs");
 const WebSocket = require("ws");
 const { v4: uuidv4 } = require("uuid");
-const { getAllBonionMCPTools, handleBonionToolCall, fetchBonionTools } = require("./tools");
+const { getAllBonionMCPTools, handleBonionToolCall, fetchBonionServers } = require("./tools");
 
 const app = express();
 app.use(cors());
@@ -704,10 +704,22 @@ app.get("/lyrics", async (req, res) => {
 app.get("/debug/bonion", async (req, res) => {
   console.log("[DEBUG] Checking Bonion API connectivity...");
   try {
-    const tools = await fetchBonionTools();
+    const servers = await fetchBonionServers();
+    let totalTools = 0;
+    for (const server of servers) {
+      if (server.enabled && Array.isArray(server.tools)) {
+        totalTools += server.tools.filter(t => t.enabled).length;
+      }
+    }
     res.json({
       status: "OK",
-      bonionTools: tools.length,
+      servers: servers.length,
+      bonionTools: totalTools,
+      serverDetails: servers.map(s => ({
+        name: s.name,
+        enabled: s.enabled,
+        tools: Array.isArray(s.tools) ? s.tools.filter(t => t.enabled).length : 0
+      })),
       timestamp: new Date().toISOString()
     });
   } catch (e) {
