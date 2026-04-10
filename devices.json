@@ -3,6 +3,6 @@
     "deviceName": "Ban",
     "wssUrl": "wss://api.xiaozhi.me/mcp/?token=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjg0NjI5OCwiYWdlbnRJZCI6MTU1MzQyMCwiZW5kcG9pbnRJZCI6ImFnZW50XzE1NTM0MjAiLCJwdXJwb3NlIjoibWNwLWVuZHBvaW50IiwiaWF0IjoxNzczNDU5ODc0LCJleHAiOjE4MDUwMTc0NzR9.GI3BJ72G74srFV7E6cydOu0_cuOfBinFB8a2u2fmQrCl1IAZsd1WyKTNhjs03qNvGOHn4fqW6nXTGCba62HcoA",
     "savedAt": "2026-03-14T04:42:23.026Z",
-    "autoConnect": true
+    "autoConnect": false
   }
 ]

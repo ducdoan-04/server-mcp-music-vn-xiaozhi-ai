@@ -23,8 +23,18 @@ async function fetchBonionTools() {
   }
 
   try {
+    console.log(`[tools] 🔷 Đang gọi Bonion API: ${BONION_API}`);
     const r = await fetch(BONION_API, { timeout: 10000 });
+    console.log(`[tools] 📡 Bonion response status: ${r.status}`);
+    
+    if (!r.ok) {
+      console.error(`[tools] ❌ Bonion API error: HTTP ${r.status}`);
+      return cachedBonionTools || [];
+    }
+    
     const json = await r.json();
+    console.log(`[tools] 📦 Bonion response: success=${json.success}, data items=${json.data?.length || 0}`);
+    
     if (json.success && json.data) {
       cachedBonionTools = json.data;
       cacheTime = now;
@@ -32,7 +42,8 @@ async function fetchBonionTools() {
       return json.data;
     }
   } catch (e) {
-    console.error(`[tools] ❌ Lỗi tải tools từ bonion: ${e.message}`);
+    console.error(`[tools] ❌ Lỗi tải tools từ bonion:`, e.message);
+    console.error(`[tools] ❌ Stack: `, e.stack);
   }
   return cachedBonionTools || [];
 }

@@ -700,6 +700,25 @@ app.get("/lyrics", async (req, res) => {
   res.json(await handleGetLyrics({ encodeId: id }));
 });
 
+// Debug endpoint
+app.get("/debug/bonion", async (req, res) => {
+  console.log("[DEBUG] Checking Bonion API connectivity...");
+  try {
+    const tools = await fetchBonionTools();
+    res.json({
+      status: "OK",
+      bonionTools: tools.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    res.status(500).json({
+      status: "ERROR",
+      error: e.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 app.get("/health", (req, res) => {
   res.json({ status: "ok", devices: connectedDevices.size, uptime: Math.floor(process.uptime()) + "s" });
 });
